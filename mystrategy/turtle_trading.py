@@ -3,6 +3,7 @@ from __future__ import (absolute_import, division, print_function,
 import backtrader as bt
 import datetime
 import time
+from backtrader import ResamplerDaily
 
 class BinanceComissionInfo(bt.CommissionInfo):
     params = (
@@ -188,12 +189,19 @@ class Turtle(bt.Strategy):
             f"End cash: {val_end:.2f}"
         )
 
+    def nextstart(self):
+        print('--------------------------------------------------')
+        print('nextstart called with len', len(self))
+        print('--------------------------------------------------')
+
+        super(Turtle, self).nextstart()
+
 
 def runstrategy():
     # Create a cerebro entity
     cerebro = bt.Cerebro(maxcpus=0,
                          runonce=True,
-                         #optdatas=False,
+                         #optdatas=True,
                          optreturn=True,
                          preload=True)
 
@@ -209,15 +217,24 @@ def runstrategy():
     data = bt.feeds.GenericCSVData(
         dataname=dataset_filename,
         dtformat="%Y-%m-%dT%H:%M:%S.%f",
-        # fromdate=fromdate,
-        # todate=todate,
-        timeframe=bt.TimeFrame.Ticks
+        #fromdate=fromdate,
+        #todate=todate,
+        timeframe=bt.TimeFrame.Minutes
     )
 
+    data2 = bt.DataClone(dataname=data)
+    data2.addfilter(ResamplerDaily)
+    # data2 = bt.DataResampler(
+    #     dataname=data,
+    #     timeframe=tframes[bt.TimeFrame.Days],
+    #     )
+
     # Add the Data Feed to Cerebro
-    # cerebro.adddata(data)
-    cerebro.resampledata(data, timeframe=bt.TimeFrame.Minutes, compression=1)
-    cerebro.resampledata(data, timeframe=bt.TimeFrame.Days)
+    cerebro.adddata(data)
+    cerebro.adddata(data2)
+
+    # cerebro.resampledata(data, timeframe=bt.TimeFrame.Minutes, compression=1)
+    # cerebro.resampledata(data, timeframe=bt.TimeFrame.Days)
 
     # Add a Commission and Support Fractional Size
     cerebro.broker.addcommissioninfo(BinanceComissionInfo())
@@ -226,7 +243,7 @@ def runstrategy():
     cerebro.optstrategy(
         Turtle,
         #short_period=range(5, 30),
-        breakout_period=range(5, 30),
+        breakout_period=range(10, 30),
         exit_period=range(5, 25),
         #max_units=range(2, 6),
         #risk_per_trade=np.arange(0.005, 0.1, 0.005)
