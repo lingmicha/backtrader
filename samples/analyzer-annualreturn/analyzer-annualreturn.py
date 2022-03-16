@@ -41,7 +41,7 @@ class LongShortStrategy(bt.Strategy):
     params = dict(
         period=15,
         stake=1,
-        printout=False,
+        printout=True,
         onlylong=False,
         csvcross=False,
     )

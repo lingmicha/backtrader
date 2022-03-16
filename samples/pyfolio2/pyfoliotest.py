@@ -88,7 +88,7 @@ _TFRAMES = collections.OrderedDict(
     )
 )
 
-_TFS = _TFRAMES.keys()
+_TFS = list(_TFRAMES.keys())  #_TFS = _TFRAMES.keys()
 
 
 def runstrat(args=None):

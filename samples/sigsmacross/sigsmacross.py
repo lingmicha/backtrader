@@ -76,13 +76,13 @@ def parse_args(pargs=None):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description='sigsmacross')
 
-    parser.add_argument('--data', required=False, default='YHOO',
+    parser.add_argument('--data', required=False, default='../../datas/yhoo-2014.txt',
                         help='Yahoo Ticker')
 
-    parser.add_argument('--fromdate', required=False, default='2011-01-01',
+    parser.add_argument('--fromdate', required=False, default='2014-01-01',
                         help='Ending date in YYYY-MM-DD format')
 
-    parser.add_argument('--todate', required=False, default='2012-12-31',
+    parser.add_argument('--todate', required=False, default='2014-12-31',
                         help='Ending date in YYYY-MM-DD format')
 
     parser.add_argument('--cash', required=False, action='store', type=float,

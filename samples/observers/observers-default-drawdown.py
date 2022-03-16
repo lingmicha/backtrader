@@ -77,7 +77,6 @@ def runstrat():
     cerebro.adddata(data)
 
     cerebro.addobserver(bt.observers.DrawDown)
-    cerebro.addobserver(bt.observers.DrawDown_Old)
 
     cerebro.addstrategy(MyStrategy)
     cerebro.run()

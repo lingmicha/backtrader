@@ -59,7 +59,7 @@ def runstrat(pargs=None):
 
     cerebro.addanalyzer(bt.analyzers.Returns)
     cerebro.optstrategy(StFetcher, idx=[0, 1])
-    results = cerebro.run(maxcpus=args.maxcpus, optreturn=args.optreturn)
+    results = cerebro.run(maxcpus=0, optreturn=args.optreturn)
 
     strats = [x[0] for x in results]  # flatten the result
     for i, strat in enumerate(strats):

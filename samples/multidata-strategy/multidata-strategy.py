@@ -77,9 +77,9 @@ class MultiDataStrategy(bt.Strategy):
         self.orderid = None
 
         # Create SMA on 2nd data
-        sma = btind.MovAv.SMA(self.data1, period=self.p.period)
+        self.sma = btind.MovAv.SMA(self.data1, period=self.p.period)
         # Create a CrossOver Signal from close an moving average
-        self.signal = btind.CrossOver(self.data1.close, sma)
+        self.signal = btind.CrossOver(self.data1.close, self.sma)
 
     def next(self):
         if self.orderid:

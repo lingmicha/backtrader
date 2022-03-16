@@ -81,13 +81,13 @@ def runstrat():
     cerebro.adddata(data)
 
     # clock the start of the process
-    tstart = time.clock()
+    tstart = time.time() #time.clock()
 
     # Run over everything
     stratruns = cerebro.run()
 
     # clock the end of the process
-    tend = time.clock()
+    tend = time.time() #time.clock()
 
     print('==================================================')
     for stratrun in stratruns:

@@ -79,7 +79,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Resampling script down to tick data')
 
-    parser.add_argument('--dataname', default='', required=False,
+    parser.add_argument('--dataname', default='../../datas/ticksample.csv', required=False,
                         help='File Data to Load')
 
     parser.add_argument('--timeframe', default='ticks', required=False,

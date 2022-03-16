@@ -79,6 +79,9 @@ def parse_args():
     parser.add_argument('--plot-on-daily', required=False, action='store_true',
                         help=('Plot the indicator on the daily data'))
 
+    parser.add_argument('--usepp1', required=False, action='store_true',
+                        help='Have PivotPoint look 1 period backwards')
+
     return parser.parse_args()
 
 
