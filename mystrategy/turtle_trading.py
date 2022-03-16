@@ -183,6 +183,7 @@ class Turtle(bt.Strategy):
         self.roi = (self.broker.get_value() / self.val_start) - 1.0
         val_end = self.broker.get_value()
         print(
+            f"PARAMS:{self.p._getkwargs()}, "
             f"ROI: {100.0 * self.roi:.2f}%%, Start cash {self.val_start:.2f}, "
             f"End cash: {val_end:.2f}"
         )
@@ -202,14 +203,14 @@ def runstrategy():
     # Get the dates from the args
     fromdate = datetime.datetime.strptime('2017-12-01', '%Y-%m-%d')
     todate = datetime.datetime.strptime('2018-01-31', '%Y-%m-%d')
-    dataset_filename = 'BNB.csv'
+    dataset_filename = 'data/BNB.csv'
 
     # Create a Data Feed
     data = bt.feeds.GenericCSVData(
         dataname=dataset_filename,
         dtformat="%Y-%m-%dT%H:%M:%S.%f",
-        fromdate=fromdate,
-        todate=todate,
+        # fromdate=fromdate,
+        # todate=todate,
         timeframe=bt.TimeFrame.Ticks
     )
 
