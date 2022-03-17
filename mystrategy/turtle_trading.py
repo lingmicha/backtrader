@@ -1,9 +1,16 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
+
+import argparse
+
 import backtrader as bt
 import datetime
 import time
 from backtrader import ResamplerDaily
+
+from backtrader import logger
+log = logger.get_logger(__name__)
+
 
 class BinanceComissionInfo(bt.CommissionInfo):
     params = (
@@ -33,7 +40,6 @@ class Turtle(bt.Strategy):
         ("max_units", 4),  # 1N
         ("risk_per_trade", 0.01),  # risk per trade 1% of the account
         ("portfolio_frac", 0.98),
-        ('printout', True)
     )
 
     def __init__(self):
@@ -44,37 +50,45 @@ class Turtle(bt.Strategy):
         self.roi = 0
 
         # define lines
-        self.short_period_atr = bt.ind.AverageTrueRange(self.data1, period=self.p.breakout_period)()
+        self.short_period_atr = bt.ind.AverageTrueRange(self.data1, period=self.p.breakout_period)
         # self.long_period_atr = bt.ind.AverageTrueRange(self.data1, period=self.p.long_period)()
 
-        self.breakout_high = bt.ind.Highest(self.data1, period=self.p.breakout_period)()
-        self.breakout_low = bt.ind.Lowest(self.data1, period=self.p.breakout_period)()
+        self.breakout_high = bt.ind.Highest(self.data1, period=self.p.breakout_period)
+        self.breakout_low = bt.ind.Lowest(self.data1, period=self.p.breakout_period)
 
-        self.exit_high = bt.ind.Highest(self.data1, period=self.p.exit_period)()
-        self.exit_low = bt.ind.Lowest(self.data1, period=self.p.exit_period)()
+        self.exit_high = bt.ind.Highest(self.data1, period=self.p.exit_period)
+        self.exit_low = bt.ind.Lowest(self.data1, period=self.p.exit_period)
 
         # buy signal
-        self.buysignal = self.data0.high > self.breakout_high.highest
+        self.buysignal = self.data0.high > self.breakout_high.highest()
         # sell signal
-        self.sellsignal = self.data0.low < self.breakout_low.lowest
+        self.sellsignal = self.data0.low < self.breakout_low.lowest()
 
         # exit signal
-        self.exit_long_signal = self.data0.low < self.exit_low.lowest
-        self.exit_short_signal = self.data0.high > self.exit_high.highest
+        self.exit_long_signal = self.data0.low < self.exit_low.lowest()
+        self.exit_short_signal = self.data0.high > self.exit_high.highest()
         self.current_N_units = 0  # current unit should be smaller than max units permitted
         self.breakout_price = 0  # breakout price
         self.stop_loss = 0  # stop loss price; update during order complete
 
     def next(self):
 
-        # print(f"Data0 DateTime: {self.data0.datetime.datetime(0)}",
-        #       f"Buy Signal :{self.buysignal[0]}",
-        #       f"Current High :{self.data0.high[0]}",
-        #       f"Data1 DateTime: {self.data1.datetime.datetime(0)}",
-        #       f"Breakout Highest: {self.breakout_high.highest[0]}",
-        #       f"ATR Short: {self.short_period_atr.atr[0]}",
-        #       f"N : {self.N[0]}"
-        #       )
+        # logging every detailed info
+        log.debug(
+            (
+                f"Data0 {len(self.data0): 07d} ",
+                f"{self.data0.datetime.datetime(0):%Y-%m-%d %H:%M:%S} ",
+                f"High:{self.data0.high[0]: 4f} ",
+                f"Low:{self.data0.low[0]: 4f} ",
+                f"Data1 {len(self.data1): 05d} ",
+                f"{self.data1.datetime.datetime(0):%Y-%m-%d %H:%M:%S} ",
+                f"Signals Buy:{self.buysignal[0]} ",
+                f"Sell:{self.sellsignal[0]} ",
+                f"Breakout-Highest:{self.breakout_high.highest[0]} ",
+                f"Breakout-Lowest: {self.breakout_low.lowest[0]} ",
+                f"ATR: {self.short_period_atr.atr[0]}"
+            )
+        )
 
         self.N = self.short_period_atr.atr[0]
         self.unit_size = self.val_start * self.p.risk_per_trade / self.N
@@ -131,7 +145,7 @@ class Turtle(bt.Strategy):
         Notify if order was accepted or rejected
         """
         if order.alive():
-            # print(f"Order is alive: {self.datas[0].datetime.datetime(0)}")
+            log.debug(f"Order is alive: {self.datas[0].datetime.datetime(0)}")
 
             # submitted, accepted, partial, created
             # Returns if the order is in a status in which it can still be executed
@@ -139,15 +153,15 @@ class Turtle(bt.Strategy):
 
         order_side = "Buy" if order.isbuy() else "Sell"
         if order.status == order.Completed:
-            # print(
-            #     (
-            #         f"{order_side} Order Completed - Datetime{self.datas[0].datetime.datetime(0)} "
-            #         f"Size: {order.executed.size} "
-            #         f"@Price: {order.executed.price} "
-            #         f"Value: {order.executed.value:.2f} "
-            #         f"Comm: {order.executed.comm:.6f} "
-            #     )
-            # )
+            log.info(
+                (
+                    f"{order_side} Order Completed - {self.datas[0].datetime.datetime(0)} "
+                    f"Size: {order.executed.size} "
+                    f"@Price: {order.executed.price} "
+                    f"Value: {order.executed.value:.2f} "
+                    f"Comm: {order.executed.comm:.6f} "
+                )
+            )
             if self.current_N_units == 0:
                 self.stop_loss = order.executed.price - self.N * 2 if order.isbuy() else order.executed.price + self.N * 2
             else:
@@ -155,17 +169,17 @@ class Turtle(bt.Strategy):
             self.current_N_units += 1
 
         elif order.status in {order.Canceled, order.Margin, order.Rejected}:
-            print(f"{order_side} Order Canceled/Margin/Rejected"
-                  f"{order.position}")
-            # print(
-            #     (
-            #         f"{order_side} Order Completed - Datetime{self.datas[0].datetime.datetime(0)} "
-            #         f"Size: {order.executed.size} "
-            #         f"@Price: {order.executed.price} "
-            #         f"Value: {order.executed.value:.2f} "
-            #         f"Comm: {order.executed.comm:.6f} "
-            #     )
-            # )
+            log.warn(
+                (
+                    f"{order_side} Order Canceled/Margin/Rejected"
+                    f"Size: {order.created.size} "
+                    f"@Price: {order.created.price} "
+                    f"Value: {order.created.value:.2f} "
+                    f"N Value: {self.N} "
+                    f"Remaining Cash: {self.broker.get_cash()}"
+                )
+            )
+
         self.order = None  # indicate no order pending
 
     def notify_trade(self, trade):
@@ -177,131 +191,120 @@ class Turtle(bt.Strategy):
             self.current_N_units = 0  # reset
             self.stop_loss = 0
             self.breakout_price = 0
-            #print(f"Operational profit, Gross: {trade.pnl:.2f}, Net: {trade.pnlcomm:.2f}")
+            log.info(
+                f"Operational profit, Gross: {trade.pnl:.2f}, Net: {trade.pnlcomm:.2f}"
+            )
 
     def stop(self):
         """ Calculate the actual returns """
         self.roi = (self.broker.get_value() / self.val_start) - 1.0
         val_end = self.broker.get_value()
-        print(
+        log.info(
             f"PARAMS:{self.p._getkwargs()}, "
             f"ROI: {100.0 * self.roi:.2f}%%, Start cash {self.val_start:.2f}, "
             f"End cash: {val_end:.2f}"
         )
 
-    def nextstart(self):
-        print('--------------------------------------------------')
-        print('nextstart called with len', len(self))
-        print('--------------------------------------------------')
+def run_strategy():
 
-        super(Turtle, self).nextstart()
-
-
-def runstrategy():
-    # Create a cerebro entity
-    cerebro = bt.Cerebro(maxcpus=0,
-                         runonce=True,
-                         #optdatas=True,
-                         optreturn=True,
-                         preload=True)
-
-    # Set our desired cash start
-    cerebro.broker.setcash(10000)
+    args = parse_args()
 
     # Get the dates from the args
     fromdate = datetime.datetime.strptime('2017-12-01', '%Y-%m-%d')
     todate = datetime.datetime.strptime('2018-01-31', '%Y-%m-%d')
-    dataset_filename = 'data/BNB.csv'
+    dataset_filename = args.dataname
 
-    # Create a Data Feed
+    # Create a cerebro entity
+    cerebro = bt.Cerebro(maxcpus=0,
+                         runonce=False, # use line coupler, according to documents here can only be false
+                         #optdatas=True,
+                         #optreturn=True,
+                         preload=False)
+
+    # Set our desired cash start
+    cerebro.broker.setcash(10000)
+
+    # Create and Add a Data Feed
     data = bt.feeds.GenericCSVData(
         dataname=dataset_filename,
         dtformat="%Y-%m-%dT%H:%M:%S.%f",
         #fromdate=fromdate,
         #todate=todate,
-        timeframe=bt.TimeFrame.Minutes
+        timeframe=bt.TimeFrame.Minutes,
     )
+    cerebro.adddata(data)  # finer data should always be added first
 
+    #####################################
+    # Two Ways to Sample and Add Data2:
+    # (1) do a clone and add filter, \
+    # this still wouldn't work for preload, \
+    # need manual turn down, otherwise cause errors
+    # this one runs faster buy consumes more memory, results should be the same
+    '''
     data2 = bt.DataClone(dataname=data)
     data2.addfilter(ResamplerDaily)
-    # data2 = bt.DataResampler(
-    #     dataname=data,
-    #     timeframe=tframes[bt.TimeFrame.Days],
-    #     )
-
-    # Add the Data Feed to Cerebro
-    cerebro.adddata(data)
     cerebro.adddata(data2)
+    '''
 
-    # cerebro.resampledata(data, timeframe=bt.TimeFrame.Minutes, compression=1)
-    # cerebro.resampledata(data, timeframe=bt.TimeFrame.Days)
+    # (2) use a resampledata func, \
+    # this automatically turn down preload, so this always behaves right
+    cerebro.resampledata(data, timeframe=bt.TimeFrame.Days)
+    ######################################
 
     # Add a Commission and Support Fractional Size
     cerebro.broker.addcommissioninfo(BinanceComissionInfo())
 
-    # Add a strategy
-    cerebro.optstrategy(
-        Turtle,
-        #short_period=range(5, 30),
-        breakout_period=range(10, 30),
-        exit_period=range(5, 25),
-        #max_units=range(2, 6),
-        #risk_per_trade=np.arange(0.005, 0.1, 0.005)
-    )
+    cerebro.addstrategy(Turtle)
 
     # Add Oberserver
     # cerebro.addobserver(bt.observers.DrawDown)
     # cerebro.addobserver(bt.observers.DrawDown_Old)
 
-    # Analyzer
+    # Add Analyzer
+
+    # Add Daily SharpeRatio
     cerebro.addanalyzer(
-        bt.analyzers.TimeReturn,
-        _name="alltime_roi",
-        timeframe=bt.TimeFrame.NoTimeFrame
+        bt.analyzers.SharpeRatio,
+        timeframe=bt.TimeFrame.Days,
+        riskfreerate=0,
+        _name='dailysharp'
     )
 
-    # cerebro.addanalyzer(
-    #     bt.analyzers.TradeAnalyzer,
-    #     _name="trade_analysis",
-    # )
+    cerebro.addanalyzer(
+        bt.analyzers.TimeReturn,
+        timeframe=bt.TimeFrame.NoTimeFrame,
+        _name='alltimereturn'
+    )
 
-    # cerebro.addanalyzer(
-    #     bt.analyzers.TimeReturn,
-    #     data=data,
-    #     _name="benchmark",
-    #     timeframe=bt.TimeFrame.NoTimeFrame,
-    # )
-
+    # Add PyFolio, but this is quite problematic
     # cerebro.addanalyzer(
     #     bt.analyzers.PyFolio, # PyFlio only work with daily data
     #     timeframe=bt.TimeFrame.Minutes,
     #     compression=1440
     # )
 
-    # Print out the starting conditions
-    # print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
-
     # Add a writer
     # csv_out = 'test-1.csv'
     # cerebro.addwriter(bt.WriterFile, csv=True, out=csv_out)
 
-    # Run over everything
-    # cerebro.run(runonce=False)
-    # cerebro.run()
-    # results = cerebro.run()
-    # st0 = results[0]
+    # Run Here
+    tstart = time.time()  # time.clock()
+    results = cerebro.run(runonce=False)
+    tend = time.time()  # time.clock()
+
+    st0 = results[0]
+    log.info(
+        (
+            f"Sharp Ratio: {str(st0.analyzers.dailysharp.get_analysis())}, "
+            f"All Time Return: {str(st0.analyzers.alltimereturn.get_analysis())}"
+        )
+    )
 
     # pyfoliozer = st0.analyzers.getbyname('pyfolio')
     # returns, positions, transactions, gross_lev = pyfoliozer.get_pf_items()
     # returns.to_csv("returns.csv")
     # positions.to_csv("positions.csv")
     # transactions.to_csv("transactions.csv")
-
-    # for alyzer in st0.analyzers:
-    #     alyzer.print()
-
-    # Print out the final result
-    # print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
 
     # pyfolio showtime
     # pf.create_full_tear_sheet(
@@ -315,28 +318,120 @@ def runstrategy():
     # cerebro.plot(iplot=False, style="bar")
     # cerebro.plot()
 
+    # print out the result
+    log.info(
+        f"Total Run Time Used:', {str(tend - tstart)}"
+    )
+
+def run_optstrategy():
+
+    args = parse_args()
+
+    # Get the dates from the args
+    fromdate = datetime.datetime.strptime('2017-12-01', '%Y-%m-%d')
+    todate = datetime.datetime.strptime('2018-01-31', '%Y-%m-%d')
+    dataset_filename = args.dataname
+
+    # Create a cerebro entity
+    cerebro = bt.Cerebro(maxcpus=0,
+                         runonce=False, # use line coupler, according to documents here can only be false
+                         optdatas=True,
+                         optreturn=True,
+                         preload=False)
+
+    # Set our desired cash start
+    cerebro.broker.setcash(10000)
+
+    # Create and Add a Data Feed
+    data = bt.feeds.GenericCSVData(
+        dataname=dataset_filename,
+        dtformat="%Y-%m-%dT%H:%M:%S.%f",
+        #fromdate=fromdate,
+        #todate=todate,
+        timeframe=bt.TimeFrame.Minutes,
+    )
+    cerebro.adddata(data)  # finer data should always be added first
+    cerebro.resampledata(data, timeframe=bt.TimeFrame.Days)
+
+    # Add a Commission and Support Fractional Size
+    cerebro.broker.addcommissioninfo(BinanceComissionInfo())
+
+    # Add a strategy
+    cerebro.optstrategy(
+        Turtle,
+        breakout_period=range(15, 26),
+        exit_period=range(5, 26),
+        #max_units=range(2, 6),
+        #risk_per_trade=np.arange(0.005, 0.1, 0.005)
+    )
+
+    # Add Analyzer
+    # Add Daily SharpeRatio
+    # According to Ernest Chan's book:
+    # if the daily Sharpe ratio multiplied by the square root of the number days (n)\
+    # in the backtest is greater than or equal to the critical value 2.326, \
+    # then the p-value is smaller than or equal to 0.01.
+    cerebro.addanalyzer(
+        bt.analyzers.SharpeRatio,
+        timeframe=bt.TimeFrame.Days,
+        riskfreerate=0,
+        _name='dailysharp'
+    )
+
+    cerebro.addanalyzer(
+        bt.analyzers.TimeReturn,
+        timeframe=bt.TimeFrame.NoTimeFrame,
+        _name='alltimereturn'
+    )
+
+
+    #######################################################
+    # Opt Run Here
+    #######################################################
     # clock the start of the process
     tstart = time.time()  # time.clock()
 
     # Run over everything
-    stratruns = cerebro.run()
+    stratruns = cerebro.run(runonce=False, stdstats=False)  # must turn off stdstats for unknown reason
 
     # clock the end of the process
     tend = time.time()  # time.clock()
 
-    print('==================================================')
+    # log Analyzers for all runs
     for stratrun in stratruns:
-        print('**************************************************')
         for strat in stratrun:
-            print('--------------------------------------------------')
-            print(strat.p._getkwargs())
-            for alyzer in strat.analyzers:
-                alyzer.print()
-    print('==================================================')
+            log.info(
+                (
+                    f"PARAMS:{str(strat.p._getkwargs())}, "
+                    f"Daily Sharp: {str(strat.analyzers.dailysharp.get_analysis())}"
+                )
+            )
 
     # print out the result
-    print('Time used:', str(tend - tstart))
+    log.info(
+        f"Total Run Time Used:', {str(tend - tstart)}"
+    )
 
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='Turtle Trading!!!')
+
+    parser.add_argument('--dataname', default='data/BNB.csv', required=False,
+                        help='File Data to Load')
+
+    parser.add_argument('--runopt', action='store_true',
+                        help='Use next by next instead of runonce')
+
+    parser.add_argument('--plot', required=False, action='store_true',
+                        help='Plot the chart')
+
+    return parser.parse_args()
 
 if __name__ == '__main__':
-    runstrategy()
+    args = parse_args()
+
+    if not args.runopt:
+        run_strategy()
+    else:
+        run_optstrategy()

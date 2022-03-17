@@ -125,7 +125,7 @@ class SharpeRatio(Analyzer):
     )
 
     RATEFACTORS = {
-        TimeFrame.Days: 252,
+        TimeFrame.Days: 365.25,
         TimeFrame.Weeks: 52,
         TimeFrame.Months: 12,
         TimeFrame.Years: 1,
