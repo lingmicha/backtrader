@@ -62,7 +62,6 @@ from .signal import *
 from .cerebro import *
 from .timer import *
 from .flt import *
-from .logger import *
 
 from . import utils as utils
 
