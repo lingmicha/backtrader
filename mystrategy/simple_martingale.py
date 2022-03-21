@@ -1,13 +1,8 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 import backtrader as bt
-import pandas as pd
-import requests
-from os import path
 import datetime
-import pyfolio as pf
 import argparse
-
 
 class BinanceComissionInfo(bt.CommissionInfo):
     params = (
@@ -61,7 +56,7 @@ class MartingaleSize():
 
     def __init__(self):
         self.double_time = 1
-        self.init_cap = 10
+        self.init_cap = 20
 
     def double(self):
         self.double_time *= 2
@@ -93,11 +88,12 @@ class Martingale(bt.Strategy):
         # Percentage of portfolio for a trade. Something is left for the fees
         # otherwise orders would be rejected
         ("portfolio_frac", 0.98),
-        ('printout',True)
+        ("debug", False),
+
     )
 
     def __init__(self):
-        self.val_start = self.broker.get_cash()  # keep the starting cash
+        self.val_start = self.broker.getcash()  # keep the starting cash
         self.size = None
         self.order = None
 
@@ -109,7 +105,7 @@ class Martingale(bt.Strategy):
         self.size_calc = MartingaleSize()
 
     def log(self, txt, dt=None):
-        if self.p.printout:
+        if self.p.debug:
             dt = dt or self.data.datetime[0]
             dt = bt.num2date(dt)
             print('%s, %s' % (dt.isoformat(), txt))
@@ -121,7 +117,7 @@ class Martingale(bt.Strategy):
 
     def next(self):
 
-        available_cash = self.broker.get_cash() * self.p.portfolio_frac
+        available_cash = self.broker.getcash() * self.p.portfolio_frac
 
         if not self.position:  # not in the market
             # buy in now
@@ -132,18 +128,23 @@ class Martingale(bt.Strategy):
             # reset all mark
             self.reset_mark()
 
-            # print(
-            #     "Enter Market:"
-            #     f"DateTime {self.datas[0].datetime.datetime(0)}, "
-            #     f"Price {self.data[0]:.2f}, "
-            # )
+            print(
+                "Enter Market:"
+                f"DateTime {self.datas[0].datetime.datetime(0)}, "
+                f"Price {self.data[0]:.2f}, "
+                f"Amount {self.size}"
+            )
 
         else:  # in the market
 
-            # print(f"TradeOpen: {self.dyn_highest._tradeopen},"
-            #       f"Dyn Highest:{self.dyn_highest[0]},"
-            #       f"Dyn Lowest:{self.dyn_lowest[0]},"
-            #       )
+            if self.p.debug:
+                print(
+                    (
+                        f"TradeOpen: {self.dyn_highest._tradeopen},"
+                        f"Dyn Highest:{self.dyn_highest[0]},"
+                        f"Dyn Lowest:{self.dyn_lowest[0]},"
+                    )
+                )
 
             # process buy/sell first
             if self.sell_mark and (
@@ -152,15 +153,17 @@ class Martingale(bt.Strategy):
                 self.order = self.close()
                 self.reset_mark()
 
-                # print(
-                #     "Leave Market:"
-                #     f"DateTime {self.datas[0].datetime.datetime(0)}, "
-                #     f"Market Price {self.data[0]:.2f}, "
-                #     f"Market Low Price {self.data.lines.low[0]:.2f},"
-                #     f"Position Cost {self.position.price}， "
-                #     f"Position Size {self.position.size}， "
-                #     f"Recent High {self.dyn_highest[0]} "
-                # )
+                print(
+                    (
+                        f"Leave Market:"
+                        f"DateTime {self.datas[0].datetime.datetime(0)}, "
+                        f"Market Price {self.data[0]:.2f}, "
+                        f"Market Low {self.data.lines.low[0]:.2f},"
+                        f"Position Cost {self.position.price}， "
+                        f"Position Size {self.position.size}， "
+                        f"Recent High {self.dyn_highest[0]} "
+                    )
+                )
 
                 return
 
@@ -171,15 +174,17 @@ class Martingale(bt.Strategy):
                 self.order = self.buy(size=self.size)
                 self.reset_mark()
 
-                # print(
-                #     "Double Bet:"
-                #     f"DateTime {self.datas[0].datetime.datetime(0)}, "
-                #     f"Market Price {self.data[0]:.2f},"
-                #     f"Market High Price {self.data.lines.high[0]:.2f},"
-                #     f"Position Cost {self.position.price}， "
-                #     f"Position Size {self.position.size}， "
-                #     f"Recent Low {self.dyn_lowest[0]} "
-                # )
+                print(
+                    (
+                        f"Double Bet:"
+                        f"DateTime {self.datas[0].datetime.datetime(0)}, "
+                        f"Market Price {self.data[0]:.2f},"
+                        f"Market High  {self.data.lines.high[0]:.2f},"
+                        f"Position Cost {self.position.price}， "
+                        f"Position Size {self.position.size}， "
+                        f"Recent Low {self.dyn_lowest[0]} "
+                    )
+                )
                 return
 
             if (pct_chg(self.data.lines.high, self.position.price) > self.p.sell_mark):
@@ -202,7 +207,7 @@ class Martingale(bt.Strategy):
         Notify if order was accepted or rejected
         """
         if order.alive():
-            #print(f"Order is alive: {self.datas[0].datetime.datetime(0)}")
+            print(f"Order is alive: {self.datas[0].datetime.datetime(0)}")
 
             # submitted, accepted, partial, created
             # Returns if the order is in a status in which it can still be executed
@@ -231,13 +236,13 @@ class Martingale(bt.Strategy):
         self.dyn_lowest.tradeopen(trade.isopen)
 
         # trade closed
-        # if trade.isclosed:
-        #     print(f"Operational profit, Gross: {trade.pnl:.2f}, Net: {trade.pnlcomm:.2f}")
+        if trade.isclosed:
+            print(f"Operational profit, Gross: {trade.pnl:.2f}, Net: {trade.pnlcomm:.2f}")
 
     def stop(self):
         """ Calculate the actual returns """
-        self.roi = (self.broker.get_value() / self.val_start) - 1.0
-        val_end = self.broker.get_value()
+        self.roi = (self.broker.getvalue() / self.val_start) - 1.0
+        val_end = self.broker.getvalue()
         print(
             f"ROI: {100.0 * self.roi:.2f}%%, Start cash {self.val_start:.2f}, "
             f"End cash: {val_end:.2f}"
@@ -383,5 +388,6 @@ def parse_args():
 
 
 if __name__ == '__main__':
+
     runstrategy()
 

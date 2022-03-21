@@ -2,15 +2,9 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import argparse
-
 import backtrader as bt
 import datetime
 import time
-from backtrader import ResamplerDaily
-
-from backtrader import logger
-log = logger.get_logger(__name__)
-
 
 class BinanceComissionInfo(bt.CommissionInfo):
     params = (
@@ -40,14 +34,23 @@ class Turtle(bt.Strategy):
         ("max_units", 4),  # 1N
         ("risk_per_trade", 0.01),  # risk per trade 1% of the account
         ("portfolio_frac", 0.98),
+        ("debug", False)
     )
 
     def __init__(self):
-        self.val_start = self.broker.get_cash()  # keep the starting cash
+
+        self.val_start = self.broker.getcash()  # keep the starting cash
         self.order = None
         self.N = 0
         self.unit_size = 0
         self.roi = 0
+
+        print(
+            (
+                f"Initial cash value:{self.val_start} ",
+                f"Initail valule:{self.broker.getvalue()}"
+            )
+        )
 
         # define lines
         self.short_period_atr = bt.ind.AverageTrueRange(self.data1, period=self.p.breakout_period)
@@ -74,21 +77,22 @@ class Turtle(bt.Strategy):
     def next(self):
 
         # logging every detailed info
-        log.debug(
-            (
-                f"Data0 {len(self.data0): 07d} ",
-                f"{self.data0.datetime.datetime(0):%Y-%m-%d %H:%M:%S} ",
-                f"High:{self.data0.high[0]: 4f} ",
-                f"Low:{self.data0.low[0]: 4f} ",
-                f"Data1 {len(self.data1): 05d} ",
-                f"{self.data1.datetime.datetime(0):%Y-%m-%d %H:%M:%S} ",
-                f"Signals Buy:{self.buysignal[0]} ",
-                f"Sell:{self.sellsignal[0]} ",
-                f"Breakout-Highest:{self.breakout_high.highest[0]} ",
-                f"Breakout-Lowest: {self.breakout_low.lowest[0]} ",
-                f"ATR: {self.short_period_atr.atr[0]}"
+        if self.p.debug:
+            print(
+                (
+                    f"Data0 {len(self.data0): 07d} ",
+                    f"{self.data0.datetime.datetime(0):%Y-%m-%d %H:%M:%S} ",
+                    f"High:{self.data0.high[0]: 4f} ",
+                    f"Low:{self.data0.low[0]: 4f} ",
+                    f"Data1 {len(self.data1): 05d} ",
+                    f"{self.data1.datetime.datetime(0):%Y-%m-%d %H:%M:%S} ",
+                    f"Signals Buy:{self.buysignal[0]} ",
+                    f"Sell:{self.sellsignal[0]} ",
+                    f"Breakout-Highest:{self.breakout_high.highest[0]} ",
+                    f"Breakout-Lowest: {self.breakout_low.lowest[0]} ",
+                    f"ATR: {self.short_period_atr.atr[0]}"
+                )
             )
-        )
 
         self.N = self.short_period_atr.atr[0]
         self.unit_size = self.val_start * self.p.risk_per_trade / self.N
@@ -145,7 +149,8 @@ class Turtle(bt.Strategy):
         Notify if order was accepted or rejected
         """
         if order.alive():
-            log.debug(f"Order is alive: {self.datas[0].datetime.datetime(0)}")
+            if self.p.debug:
+                print(f"Order is alive: {self.datas[0].datetime.datetime(0)}")
 
             # submitted, accepted, partial, created
             # Returns if the order is in a status in which it can still be executed
@@ -153,7 +158,7 @@ class Turtle(bt.Strategy):
 
         order_side = "Buy" if order.isbuy() else "Sell"
         if order.status == order.Completed:
-            log.info(
+            print(
                 (
                     f"{order_side} Order Completed - {self.datas[0].datetime.datetime(0)} "
                     f"Size: {order.executed.size} "
@@ -169,14 +174,14 @@ class Turtle(bt.Strategy):
             self.current_N_units += 1
 
         elif order.status in {order.Canceled, order.Margin, order.Rejected}:
-            log.warn(
+            print(
                 (
                     f"{order_side} Order Canceled/Margin/Rejected"
                     f"Size: {order.created.size} "
                     f"@Price: {order.created.price} "
                     f"Value: {order.created.value:.2f} "
                     f"N Value: {self.N} "
-                    f"Remaining Cash: {self.broker.get_cash()}"
+                    f"Remaining Cash: {self.broker.getcash()}"
                 )
             )
 
@@ -191,7 +196,7 @@ class Turtle(bt.Strategy):
             self.current_N_units = 0  # reset
             self.stop_loss = 0
             self.breakout_price = 0
-            log.info(
+            print(
                 f"Operational profit, Gross: {trade.pnl:.2f}, Net: {trade.pnlcomm:.2f}"
             )
 
@@ -199,7 +204,7 @@ class Turtle(bt.Strategy):
         """ Calculate the actual returns """
         self.roi = (self.broker.get_value() / self.val_start) - 1.0
         val_end = self.broker.get_value()
-        log.info(
+        print(
             f"PARAMS:{self.p._getkwargs()}, "
             f"ROI: {100.0 * self.roi:.2f}%%, Start cash {self.val_start:.2f}, "
             f"End cash: {val_end:.2f}"
@@ -293,7 +298,7 @@ def run_strategy():
     tend = time.time()  # time.clock()
 
     st0 = results[0]
-    log.info(
+    print(
         (
             f"Sharp Ratio: {str(st0.analyzers.dailysharp.get_analysis())}, "
             f"All Time Return: {str(st0.analyzers.alltimereturn.get_analysis())}"
@@ -319,7 +324,7 @@ def run_strategy():
     # cerebro.plot()
 
     # print out the result
-    log.info(
+    print(
         f"Total Run Time Used:', {str(tend - tstart)}"
     )
 
@@ -333,7 +338,7 @@ def run_optstrategy():
     dataset_filename = args.dataname
 
     # Create a cerebro entity
-    cerebro = bt.Cerebro(maxcpus=0,
+    cerebro = bt.Cerebro(maxcpus=3,
                          runonce=False, # use line coupler, according to documents here can only be false
                          optdatas=True,
                          optreturn=True,
@@ -400,7 +405,7 @@ def run_optstrategy():
     # log Analyzers for all runs
     for stratrun in stratruns:
         for strat in stratrun:
-            log.info(
+            print(
                 (
                     f"PARAMS:{str(strat.p._getkwargs())}, "
                     f"Daily Sharp: {str(strat.analyzers.dailysharp.get_analysis())}"
@@ -408,7 +413,7 @@ def run_optstrategy():
             )
 
     # print out the result
-    log.info(
+    print(
         f"Total Run Time Used:', {str(tend - tstart)}"
     )
 
@@ -429,6 +434,7 @@ def parse_args():
     return parser.parse_args()
 
 if __name__ == '__main__':
+
     args = parse_args()
 
     if not args.runopt:
