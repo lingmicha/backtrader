@@ -88,7 +88,6 @@ class PyFolio(bt.Analyzer):
                        compression=self.p.compression)
 
         self._returns = TimeReturn(**dtfcomp)
-        self._positions = PositionsValue(headers=True, cash=True)
         self._transactions = Transactions(headers=True)
         self._gross_lev = GrossLeverage()
 
