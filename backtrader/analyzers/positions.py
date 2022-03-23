@@ -63,6 +63,7 @@ class PositionsValue(bt.Analyzer):
     params = (
         ('headers',  False),
         ('cash', False),
+        ('pyfolio', False) # pyfolio only need end of day position
     )
 
     def start(self):
@@ -72,7 +73,7 @@ class PositionsValue(bt.Analyzer):
             self.rets['Datetime'] = headers + ['cash'] * self.p.cash
 
         tf = min(d._timeframe for d in self.datas)
-        self._usedate = tf >= bt.TimeFrame.Days
+        self._usedate = tf >= bt.TimeFrame.Days or self.p.pyfolio
 
     def next(self):
         pvals = [self.strategy.broker.get_value([d]) for d in self.datas]
@@ -83,3 +84,11 @@ class PositionsValue(bt.Analyzer):
             self.rets[self.strategy.datetime.date()] = pvals
         else:
             self.rets[self.strategy.datetime.datetime()] = pvals
+
+    def prenext(self):
+        '''Invoked for each prenext invocation of the strategy, until the minimum
+        period of the strategy has been reached
+
+        The default behavior for an analyzer is to invoke ``next``
+        '''
+        pass  # reimplement for bug fix
