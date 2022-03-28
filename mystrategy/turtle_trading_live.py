@@ -36,8 +36,9 @@ class TurtleLive(Turtle):
 
     def notify_order(self, order):
 
-        super().next(order)
+        super().notify_order(order)
 
+        order_side = "Buy" if order.isbuy() else "Sell"
         if order.status == order.Completed:
             msg =(
                     f"{order_side} Order Completed - {self.datas[0].datetime.datetime(0)} "
