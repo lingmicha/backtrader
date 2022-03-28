@@ -10,6 +10,7 @@ import os
 import json
 from datetime import datetime, timedelta
 from turtle_trading import BinanceComissionInfo,Turtle
+from send_email import AlertEmailer
 
 class TurtleLive(Turtle):
     def __init__(self):
@@ -33,25 +34,66 @@ class TurtleLive(Turtle):
         else:
             self.live_data = False
 
+    def notify_order(self, order):
+
+        super().next(order)
+
+        if order.status == order.Completed:
+            msg =(
+                    f"{order_side} Order Completed - {self.datas[0].datetime.datetime(0)} "
+                    f"Size: {order.executed.size} "
+                    f"@Price: {order.executed.price} "
+                    f"Value: {order.executed.value:.2f} "
+                    f"Comm: {order.executed.comm:.6f} "
+                )
+
+        elif order.status in {order.Canceled, order.Margin, order.Rejected}:
+            msg =(
+                    f"{order_side} Order Canceled/Margin/Rejected"
+                    f"Size: {order.created.size} "
+                    f"@Price: {order.created.price} "
+                    f"Value: {order.created.value:.2f} "
+                    f"N Value: {self.N} "
+                    f"Remaining Cash: {self.broker.getcash()}"
+                )
+
+        AlertEmailer.getInstance().send_email_alert(msg)
+
 
 def run_strategy():
 
     # absolute dir the script is in
     script_dir = os.path.dirname(__file__)
-    abs_file_path = os.path.join(script_dir, 'params-sandbox.json')
+    abs_file_path = os.path.join(script_dir, 'params-production.json')
     with open(abs_file_path, 'r') as f:
         params = json.load(f)
 
-    cerebro = bt.Cerebro(quicknotify=True)
+
+    # get emailer
+    mailer = AlertEmailer.getInstance()
+    mailer.set_parameter(params["email"]["host"],
+                         params["email"]["user"],
+                         params["email"]["pass"],
+                         params["email"]["port"])
+    mailer.set_sender_receiver(params["email"]["sender"],
+                               params["email"]["receiver"])
+
+    mailer.send_email_alert("this is a test")
+
+    cerebro = bt.Cerebro(quicknotify=True,
+                         exactbars=True)
 
     # Create our store
     config = {'apiKey': params["binance"]["apikey"],
               'secret': params["binance"]["secret"],
               'enableRateLimit': True,
+              'options': { # Futures Trading
+                  'defaultType': 'future',
+              },
               'nonce': lambda: str(int(time.time() * 1000)),
               }
 
-    store = CCXTStore(exchange='binance', currency='USDT', config=config, retries=5, debug=False, sandbox=True)
+    store = CCXTStore(exchange='binance', currency='USDT', config=config, retries=5, debug=False, sandbox=False)
 
     # Get the broker and pass any kwargs if needed.
     # ----------------------------------------------
@@ -87,8 +129,8 @@ def run_strategy():
     # Get our data
     # Drop newest will prevent us from loading partial data from incomplete candles
 
-    hist_start_date = datetime.utcnow() - timedelta(days=6)
-    data = store.getdata(dataname='BNB/USDT', name="BNBUSDT",
+    hist_start_date = datetime.utcnow() - timedelta(days=21)
+    data = store.getdata(dataname='PEOPLE/USDT', name="PEOPLEUSDT",
                          timeframe=bt.TimeFrame.Minutes, fromdate=hist_start_date,
                          compression=1, ohlcv_limit=10000, drop_newest=True)  # , historical=True)
 

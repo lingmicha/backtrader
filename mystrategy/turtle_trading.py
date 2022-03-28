@@ -3,8 +3,11 @@ from __future__ import (absolute_import, division, print_function,
 
 import argparse
 import backtrader as bt
-import datetime
+from datetime import datetime
 import time
+from backtrader_plotting import Bokeh
+from backtrader_plotting.schemes import Tradimo
+
 
 class BinanceComissionInfo(bt.CommissionInfo):
     params = (
@@ -48,7 +51,7 @@ class Turtle(bt.Strategy):
         print(
             (
                 f"Initial cash value:{self.val_start} ",
-                f"Initail valule:{self.broker.getvalue()}"
+                f"Initail value:{self.broker.getvalue()}"
             )
         )
 
@@ -215,8 +218,8 @@ def run_strategy():
     args = parse_args()
 
     # Get the dates from the args
-    fromdate = datetime.datetime.strptime('2017-12-01', '%Y-%m-%d')
-    todate = datetime.datetime.strptime('2018-01-31', '%Y-%m-%d')
+    fromdate = datetime.strptime('2017-12-01', '%Y-%m-%d')
+    todate = datetime.strptime('2018-01-31', '%Y-%m-%d')
     dataset_filename = args.dataname
 
     # Create a cerebro entity
@@ -224,7 +227,8 @@ def run_strategy():
                          runonce=False, # use line coupler, according to documents here can only be false
                          #optdatas=True,
                          #optreturn=True,
-                         preload=False)
+                         preload=False,
+                         )
 
     # Set our desired cash start
     cerebro.broker.setcash(10000)
@@ -282,14 +286,13 @@ def run_strategy():
     )
 
     # Add PyFolio, but this is quite problematic
-    # cerebro.addanalyzer(
-    #     bt.analyzers.PyFolio, # PyFlio only work with daily data
-    #     timeframe=bt.TimeFrame.Minutes,
-    #     compression=1440
-    # )
+    cerebro.addanalyzer(
+        bt.analyzers.PyFolio, # PyFlio only work with daily data
+        timeframe=bt.TimeFrame.Days,
+    )
 
     # Add a writer
-    # csv_out = 'test-1.csv'
+    # csv_out = dataset_filename + datetime.strftime(datetime.now(), '%Y-%m-%d') + '.csv'
     # cerebro.addwriter(bt.WriterFile, csv=True, out=csv_out)
 
     # Run Here
@@ -305,11 +308,11 @@ def run_strategy():
         )
     )
 
-    # pyfoliozer = st0.analyzers.getbyname('pyfolio')
-    # returns, positions, transactions, gross_lev = pyfoliozer.get_pf_items()
-    # returns.to_csv("returns.csv")
-    # positions.to_csv("positions.csv")
-    # transactions.to_csv("transactions.csv")
+    pyfoliozer = st0.analyzers.getbyname('pyfolio')
+    returns, positions, transactions, gross_lev = pyfoliozer.get_pf_items()
+    returns.to_csv("returns.csv")
+    positions.to_csv("positions.csv")
+    transactions.to_csv("transactions.csv")
 
     # pyfolio showtime
     # pf.create_full_tear_sheet(
@@ -322,6 +325,8 @@ def run_strategy():
 
     # cerebro.plot(iplot=False, style="bar")
     # cerebro.plot()
+    b = Bokeh(style='bar', plot_mode='single', scheme=Tradimo())
+    cerebro.plot(b)
 
     # print out the result
     print(
@@ -333,8 +338,8 @@ def run_optstrategy():
     args = parse_args()
 
     # Get the dates from the args
-    fromdate = datetime.datetime.strptime('2017-12-01', '%Y-%m-%d')
-    todate = datetime.datetime.strptime('2018-01-31', '%Y-%m-%d')
+    fromdate = datetime.strptime('2017-12-01', '%Y-%m-%d')
+    todate = datetime.strptime('2018-01-31', '%Y-%m-%d')
     dataset_filename = args.dataname
 
     # Create a cerebro entity
@@ -342,7 +347,9 @@ def run_optstrategy():
                          runonce=False, # use line coupler, according to documents here can only be false
                          optdatas=True,
                          optreturn=True,
-                         preload=False)
+                         preload=False,
+                         exactbars=True  # save memory, disable plot
+                         )
 
     # Set our desired cash start
     cerebro.broker.setcash(10000)
