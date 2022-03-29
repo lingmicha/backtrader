@@ -205,8 +205,8 @@ class Turtle(bt.Strategy):
 
     def stop(self):
         """ Calculate the actual returns """
-        self.roi = (self.broker.get_value() / self.val_start) - 1.0
-        val_end = self.broker.get_value()
+        self.roi = (self.broker.getvalue() / self.val_start) - 1.0
+        val_end = self.broker.getvalue()
         print(
             f"PARAMS:{self.p._getkwargs()}, "
             f"ROI: {100.0 * self.roi:.2f}%%, Start cash {self.val_start:.2f}, "

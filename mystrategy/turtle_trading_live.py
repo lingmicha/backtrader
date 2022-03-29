@@ -11,12 +11,15 @@ import json
 from datetime import datetime, timedelta
 from turtle_trading import BinanceComissionInfo,Turtle
 from send_email import AlertEmailer
+import signal
 
 class TurtleLive(Turtle):
     def __init__(self):
 
         self.live_data = False  #only live data to start trading
         self.broker.get_balance()
+        signal.signal(signal.SIGINT, self.sigstop)
+
         super(TurtleLive, self).__init__()
 
     def next(self):
@@ -42,30 +45,53 @@ class TurtleLive(Turtle):
         if order.status == order.Completed:
             msg =(
                     f"{order_side} Order Completed - {self.datas[0].datetime.datetime(0)} "
+                    f"Name: {order.data._name} "
                     f"Size: {order.executed.size} "
                     f"@Price: {order.executed.price} "
-                    f"Value: {order.executed.value:.2f} "
-                    f"Comm: {order.executed.comm:.6f} "
-                )
+                    f"N Value: {self.N} "
+                    f"Remaining Cash: {self.broker.getcash()} "
+                    f"Stop Loss: {self.stop_loss} "
+                    f"Position Size: {self.position.size} "
+                    f"Position Price: {self.position.price} "
+            )
 
         elif order.status in {order.Canceled, order.Margin, order.Rejected}:
             msg =(
                     f"{order_side} Order Canceled/Margin/Rejected"
-                    f"Size: {order.created.size} "
-                    f"@Price: {order.created.price} "
-                    f"Value: {order.created.value:.2f} "
+                    f"Name: {order.data._name} "
+                    f"Size: {order.executed.size} "
+                    f"@Price: {order.executed.price} "
                     f"N Value: {self.N} "
-                    f"Remaining Cash: {self.broker.getcash()}"
+                    f"Remaining Cash: {self.broker.getcash()} "
+                    f"Stop Loss: {self.stop_loss} "
+                    f"Position Size: {self.position.size} "
+                    f"Position Price: {self.position.price} "
                 )
 
         AlertEmailer.getInstance().send_email_alert(msg)
 
+    def sigstop(self, a ,b):
+        print('Stopping Backtrader')
+
+        # print out position info and parameter info
+        msg = (
+            f"Ending Program: "
+            f"N Value: {self.N} "
+            f"Remaining Cash: {self.broker.getcash()} "
+            f"Stop Loss: {self.stop_loss} "
+            f"Position Size: {self.position.size} "
+            f"Position Price: {self.position.price} "
+        )
+
+        AlertEmailer.getInstance().send_email_alert(msg)
+
+        self.env.runstop()
 
 def run_strategy():
 
     # absolute dir the script is in
     script_dir = os.path.dirname(__file__)
-    abs_file_path = os.path.join(script_dir, 'params-production.json')
+    abs_file_path = os.path.join(script_dir, 'params-sandbox-future.json')
     with open(abs_file_path, 'r') as f:
         params = json.load(f)
 
@@ -88,13 +114,13 @@ def run_strategy():
     config = {'apiKey': params["binance"]["apikey"],
               'secret': params["binance"]["secret"],
               'enableRateLimit': True,
-              'options': { # Futures Trading
+              'options': {
                   'defaultType': 'future',
               },
               'nonce': lambda: str(int(time.time() * 1000)),
               }
 
-    store = CCXTStore(exchange='binance', currency='USDT', config=config, retries=5, debug=False, sandbox=False)
+    store = CCXTStore(exchange='binance', currency='USDT', config=config, retries=5, debug=False, sandbox=True)
 
     # Get the broker and pass any kwargs if needed.
     # ----------------------------------------------
