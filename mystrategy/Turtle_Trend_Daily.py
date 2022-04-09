@@ -479,12 +479,13 @@ def run_filefeed_backtest():
     df = pd.read_csv(f"{data_path}/{bitcoin}.csv",
                      parse_dates=True,
                      index_col=0)
-    cerebro.adddata(bt.feeds.PandasData(dataname=df,
+    cerebro.resampledata(bt.feeds.PandasData(dataname=df,
                                              name=bitcoin,
                                              fromdate=fromdate,
                                              todate=todate,
                                              timeframe=bt.TimeFrame.Minutes,
                                              plot=False),
+                         timeframe=bt.TimeFrame.Days
                     )
 
     for ticker in ['BNB']: #tickers:
@@ -593,7 +594,6 @@ def run_livefeed_backtest():
                              ohlcv_limit=10000,
                              drop_newest=True)  # , historical=True)
         cerebro.adddata(data)
-        cerebro.resampledata(data, name=f"_{ticker}", timeframe=bt.TimeFrame.Days)
 
     cerebro.addobserver(bt.observers.Value)
     cerebro.addanalyzer(bt.analyzers.TimeReturn, timeframe=bt.TimeFrame.NoTimeFrame, _name='alltimereturn')
@@ -710,7 +710,7 @@ def run_live_trading():
                          #todate=todate,
                          compression=1,
                          ohlcv_limit=10000,
-                         drop_newest=False)  # , historical=True)
+                         drop_newest=True)  # , historical=True)
     cerebro.adddata(data)
 
     for ticker in tickers:
@@ -720,9 +720,11 @@ def run_live_trading():
                              #todate=todate,
                              compression=1,
                              ohlcv_limit=10000,
-                             drop_newest=False)  # , historical=True)
+                             drop_newest=True)  # , historical=True)
         cerebro.adddata(data)
 
+    cerebro.addobserver(bt.observers.Value)
+    cerebro.addanalyzer(bt.analyzers.TimeReturn, timeframe=bt.TimeFrame.NoTimeFrame, _name='alltimereturn')
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, riskfreerate=0.0)
     cerebro.addanalyzer(bt.analyzers.Returns)
     cerebro.addanalyzer(bt.analyzers.DrawDown)
@@ -747,11 +749,13 @@ def run_live_trading():
     positions.to_csv("positions.csv")
     transactions.to_csv("transactions.csv")
 
+    print(f"Return: {list(results[0].analyzers.alltimereturn.get_analysis().values())[0]:.3f}")
     print(f"Sharpe: {results[0].analyzers.sharperatio.get_analysis()['sharperatio']:.3f}")
     print(f"Norm. Annual Return: {results[0].analyzers.returns.get_analysis()['rnorm100']:.2f}%")
     print(f"Max Drawdown: {results[0].analyzers.drawdown.get_analysis()['max']['drawdown']:.2f}%")
 
-    cerebro.plot()
+    cerebro.plot(iplot=False)[0][0]
+    # cerebro.plot()
 
 if __name__ == "__main__":
 

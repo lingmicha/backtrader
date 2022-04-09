@@ -591,7 +591,7 @@ def run_livefeed_backtest():
 
     bitcoin = 'BTC'
     data = store.getdata(dataname=f"{bitcoin}/USDT", name=bitcoin,
-                         timeframe=bt.TimeFrame.Days,
+                         timeframe=bt.TimeFrame.Minutes,
                          fromdate=fromdate,
                          todate=todate,
                          compression=1,
@@ -601,7 +601,7 @@ def run_livefeed_backtest():
 
     for ticker in tickers:
         data = store.getdata(dataname=f"{ticker}/USDT", name=ticker,
-                             timeframe=bt.TimeFrame.Days,
+                             timeframe=bt.TimeFrame.Minutes,
                              fromdate=fromdate,
                              todate=todate,
                              compression=1,
