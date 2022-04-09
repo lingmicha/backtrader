@@ -223,6 +223,10 @@ class TurtleTrend(bt.Strategy):
 
     def next(self):
 
+        if self.p.live_trading:
+            # do live trading specifics
+            self.broker.get_balance()  # otherwise cash and value not updated
+
         if self.p.debug and ( len(self) % 1440 == 0 ):
             # print every hour for miniute bar
             print(f"NEXT-DATA0: {self.data.datetime.datetime(0):%Y-%m-%d %H:%M:%S}, "
@@ -489,7 +493,7 @@ def run_filefeed_backtest():
     fromdate = datetime.strptime('2020-01-01', '%Y-%m-%d')
     todate = datetime.strptime('2022-03-30', '%Y-%m-%d')
 
-    bitcoin = 'AVAX'
+    bitcoin = 'BNB'
     df = pd.read_csv(f"{data_path}/{bitcoin}.csv",
                      parse_dates=True,
                      index_col=0)
@@ -501,7 +505,7 @@ def run_filefeed_backtest():
                                              plot=False),
                     )
 
-    for ticker in tickers:
+    for ticker in ['BNB']: #tickers:
         df = pd.read_csv(f"{data_path}/{ticker}.csv",
                          parse_dates=True,
                          index_col=0)
