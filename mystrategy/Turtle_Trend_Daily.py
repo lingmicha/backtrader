@@ -151,7 +151,7 @@ class TurtleUnit:
         return False
 
 
-class TurtleTrend(bt.Strategy):
+class TurtleTrendDaily(bt.Strategy):
     params = (
         # ('index_sma', 90),
         ('breakout_window', 20 ),  # 28800 min - 20day
@@ -172,42 +172,28 @@ class TurtleTrend(bt.Strategy):
         self.index = self.datas[0]
         # self.index_sma = bt.indicators.SimpleMovingAverage(self.index, period=self.p.index_sma)
 
-        #self.cryptos = self.datas[1:]
-        self.cryptos = self.datas[1::2]
-        self.cryptos_daybar = self.datas[2::2]
+        self.cryptos = self.datas[1:]
 
         self.inds = {}
         for i, d in enumerate(self.cryptos):
             self.inds[d] = {}
 
-            # self.inds[d]["breakout_long"] = bt.indicators.Highest(d.high, period=self.p.breakout_window)
-            # self.inds[d]["exit_long"] = bt.indicators.Lowest(d.low, period=self.p.exit_window)
-            #
-            # self.inds[d]["breakout_short"] = bt.indicators.Lowest(d.low, period=self.p.breakout_window)
-            # self.inds[d]["exit_short"] = bt.indicators.Highest(d.high, period=self.p.exit_window)
-            #
-            # self.inds[d]["atr"] = bt.indicators.ATR(d, period=self.p.atr)
+            self.inds[d]["breakout_long"] = bt.indicators.Highest(d.high, period=self.p.breakout_window, plot=False)
+            self.inds[d]["exit_long"] = bt.indicators.Lowest(d.low, period=self.p.exit_window, plot=False)
 
-            self.inds[d]["breakout_long"] = bt.indicators.Highest(self.cryptos_daybar[i].high, period=self.p.breakout_window, plot=False)
-            self.inds[d]["exit_long"] = bt.indicators.Lowest(self.cryptos_daybar[i].low, period=self.p.exit_window, plot=False)
+            self.inds[d]["breakout_short"] = bt.indicators.Lowest(d.low, period=self.p.breakout_window, plot=False)
+            self.inds[d]["exit_short"] = bt.indicators.Highest(d.high, period=self.p.exit_window, plot=False)
 
-            self.inds[d]["breakout_short"] = bt.indicators.Lowest(self.cryptos_daybar[i].low, period=self.p.breakout_window, plot=False)
-            self.inds[d]["exit_short"] = bt.indicators.Highest(self.cryptos_daybar[i].high, period=self.p.exit_window, plot=False)
-
-            self.inds[d]["atr"] = bt.indicators.ATR(self.cryptos_daybar[i], period=self.p.atr, plot=False)
+            self.inds[d]["atr"] = bt.indicators.ATR(d, period=self.p.atr, plot=False)
 
         self.sigs = {}
         for d in self.cryptos:
             self.sigs[d] = {}
-            # TODO: DONOT FORGET A LINE COUPLER BETWEEN TWO TIMEFRAME COMPARE!!!
-            # CEREBRO RUNONCE = FALSE
-            # REF: https://www.backtrader.com/docu/mixing-timeframes/indicators-mixing-timeframes
-            # REF: https://www.backtrader.com/blog/posts/2016-05-05-indicators-mixing-timeframes/indicators-mixing-timeframes/
-            self.sigs[d]["breakout_long"] = d.high >= self.inds[d]["breakout_long"].highest()
-            self.sigs[d]["exit_long"] = d.low <= self.inds[d]['exit_long'].lowest()
+            self.sigs[d]["breakout_long"] = d.high >= self.inds[d]["breakout_long"]
+            self.sigs[d]["exit_long"] = d.low <= self.inds[d]['exit_long']
 
-            self.sigs[d]["breakout_short"] = d.low <= self.inds[d]["breakout_short"].lowest()
-            self.sigs[d]["exit_short"] = d.high >= self.inds[d]['exit_short'].highest()
+            self.sigs[d]["breakout_short"] = d.low <= self.inds[d]["breakout_short"]
+            self.sigs[d]["exit_short"] = d.high >= self.inds[d]['exit_short']
 
         self.crypto_pos = {}
         for d in self.cryptos:
@@ -223,7 +209,7 @@ class TurtleTrend(bt.Strategy):
 
     def next(self):
 
-        if self.p.debug and ( len(self) % 1440 == 0 ):
+        if self.p.debug :
             # print every hour for miniute bar
             print(f"NEXT-DATA0: {self.data.datetime.datetime(0):%Y-%m-%d %H:%M:%S}, "
                   # f"HIGH: {self.data.high[0]}, "
@@ -238,7 +224,7 @@ class TurtleTrend(bt.Strategy):
             return # prevent live trading with delayed data
 
         # check len > 20day/28800min
-        candidates = list(filter(lambda d: len(d) > 28800, self.cryptos))
+        candidates = list(filter(lambda d: len(d) > 20, self.cryptos))
 
         '''
             (1) Separate Pending/Long/Short/Zero Positions
@@ -259,7 +245,7 @@ class TurtleTrend(bt.Strategy):
             print(f"TICKERS W/ PENDING ORDERS, NOT PROCESSING: {[d._name for d in pending]}")
         candidates = list(filter(lambda d: d not in pending, candidates))
 
-        if self.p.debug and  ( len(self) % 1440 == 0 ):
+        if self.p.debug :
             for i, d in enumerate(candidates):
                 if len(self.crypto_pos[d]) > 0:
                     poss = '\n'.join( [ str(x) for x in self.crypto_pos[d] ])
@@ -489,7 +475,7 @@ def run_filefeed_backtest():
     fromdate = datetime.strptime('2020-01-01', '%Y-%m-%d')
     todate = datetime.strptime('2022-03-30', '%Y-%m-%d')
 
-    bitcoin = 'AVAX'
+    bitcoin = 'BNB'
     df = pd.read_csv(f"{data_path}/{bitcoin}.csv",
                      parse_dates=True,
                      index_col=0)
@@ -501,7 +487,7 @@ def run_filefeed_backtest():
                                              plot=False),
                     )
 
-    for ticker in tickers:
+    for ticker in ['BNB']: #tickers:
         df = pd.read_csv(f"{data_path}/{ticker}.csv",
                          parse_dates=True,
                          index_col=0)
@@ -511,7 +497,6 @@ def run_filefeed_backtest():
                                   todate=todate,
                                   timeframe=bt.TimeFrame.Minutes,
                                   plot=False)
-        cerebro.adddata(data)
         cerebro.resampledata(data, name=f"_{ticker}", timeframe=bt.TimeFrame.Days)
 
 
@@ -529,7 +514,7 @@ def run_filefeed_backtest():
 
     cerebro.broker.setcash(10000)
     cerebro.broker.addcommissioninfo(BinanceComissionInfo())
-    cerebro.addstrategy(TurtleTrend,
+    cerebro.addstrategy(TurtleTrendDaily,
                         debug=True)
 
     results = cerebro.run()
@@ -589,7 +574,7 @@ def run_livefeed_backtest():
     fromdate = datetime.strptime('2020-01-01', '%Y-%m-%d')
     todate = datetime.strptime('2022-03-30', '%Y-%m-%d')
 
-    bitcoin = 'BTC'
+    bitcoin = 'AVAX'
     data = store.getdata(dataname=f"{bitcoin}/USDT", name=bitcoin,
                          timeframe=bt.TimeFrame.Days,
                          fromdate=fromdate,
@@ -599,7 +584,7 @@ def run_livefeed_backtest():
                          drop_newest=True)  # , historical=True)
     cerebro.adddata(data)
 
-    for ticker in tickers:
+    for ticker in ['AVAX']: #tickers:
         data = store.getdata(dataname=f"{ticker}/USDT", name=ticker,
                              timeframe=bt.TimeFrame.Days,
                              fromdate=fromdate,
@@ -626,7 +611,7 @@ def run_livefeed_backtest():
     cerebro.broker.setcash(10000.0)
     cerebro.broker.addcommissioninfo(BinanceComissionInfo())
     # Add the strategy
-    cerebro.addstrategy(TurtleTrend,
+    cerebro.addstrategy(TurtleTrendDaily,
                         debug=True,
                         live_feed=True,
                         live_trading=False)
@@ -720,27 +705,24 @@ def run_live_trading():
 
     bitcoin = 'BTC'
     data = store.getdata(dataname=f"{bitcoin}/USDT", name=bitcoin,
-                         timeframe=bt.TimeFrame.Minutes,
+                         timeframe=bt.TimeFrame.Days,
                          fromdate=fromdate,
                          #todate=todate,
                          compression=1,
                          ohlcv_limit=10000,
-                         drop_newest=True)  # , historical=True)
+                         drop_newest=False)  # , historical=True)
     cerebro.adddata(data)
 
     for ticker in tickers:
         data = store.getdata(dataname=f"{ticker}/USDT", name=ticker,
-                             timeframe=bt.TimeFrame.Minutes,
+                             timeframe=bt.TimeFrame.Days,
                              fromdate=fromdate,
                              #todate=todate,
                              compression=1,
                              ohlcv_limit=10000,
-                             drop_newest=True)  # , historical=True)
+                             drop_newest=False)  # , historical=True)
         cerebro.adddata(data)
-        cerebro.resampledata(data, name=f"_{ticker}", timeframe=bt.TimeFrame.Days)
 
-    cerebro.addobserver(bt.observers.Value)
-    cerebro.addanalyzer(bt.analyzers.TimeReturn, timeframe=bt.TimeFrame.NoTimeFrame, _name='alltimereturn')
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, riskfreerate=0.0)
     cerebro.addanalyzer(bt.analyzers.Returns)
     cerebro.addanalyzer(bt.analyzers.DrawDown)
@@ -752,7 +734,7 @@ def run_live_trading():
     )
 
     # Add the strategy
-    cerebro.addstrategy(TurtleTrend,
+    cerebro.addstrategy(TurtleTrendDaily,
                         debug=True,
                         live_feed=True,
                         live_trading=True)
@@ -765,25 +747,20 @@ def run_live_trading():
     positions.to_csv("positions.csv")
     transactions.to_csv("transactions.csv")
 
-    print(f"Return: {list(results[0].analyzers.alltimereturn.get_analysis().values())[0]:.3f}")
     print(f"Sharpe: {results[0].analyzers.sharperatio.get_analysis()['sharperatio']:.3f}")
     print(f"Norm. Annual Return: {results[0].analyzers.returns.get_analysis()['rnorm100']:.2f}%")
     print(f"Max Drawdown: {results[0].analyzers.drawdown.get_analysis()['max']['drawdown']:.2f}%")
 
-    cerebro.plot(iplot=False)[0][0]
-    # cerebro.plot()
-
+    cerebro.plot()
 
 if __name__ == "__main__":
 
     '''TODO: LIVE TRADING CHECKLIST:
-        (1) params: set on days
-        (2) strategy: in next(), check len(self)， so that prenext/nextstart won't error
-        (3) datafeeed: fromdate, enough time for backfill data
-        (4) p.live_feed = True p.live_trading = True
-        (5) check ticker.csv, which ticker to include
-        (6) data should feed in min, and resample a day data
-        (7) use line coupler when comparing trading signals
+        (1) next: check len(self), so that prenext/nextstart won't error 
+        (2) datafeeed: fromdate, enough time for backfill data
+        (3) p.live_feed = True p.live_trading = True
+        (4) check ticker.csv, which ticker to include
+        (5) HERE, data feed should be Day
     '''
     run_filefeed_backtest()
     #run_livefeed_backtest()
