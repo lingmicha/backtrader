@@ -497,7 +497,7 @@ def run_filefeed_backtest():
     fromdate = datetime.strptime('2020-01-01', '%Y-%m-%d')
     todate = datetime.strptime('2022-03-30', '%Y-%m-%d')
 
-    bitcoin = 'BNB'
+    bitcoin = 'AVAX'
     df = pd.read_csv(f"{data_path}/{bitcoin}.csv",
                      parse_dates=True,
                      index_col=0)
@@ -509,7 +509,7 @@ def run_filefeed_backtest():
                                         plot=False),
                     )
 
-    for ticker in ['BNB']:  # tickers:
+    for ticker in ['AVAX']:  # tickers:
         df = pd.read_csv(f"{data_path}/{ticker}.csv",
                          parse_dates=True,
                          index_col=0)
@@ -559,7 +559,7 @@ def run_filefeed_backtest():
 def run_livefeed_backtest():
     # absolute dir the script is in
     script_dir = os.path.dirname(__file__)
-    abs_file_path = os.path.join(script_dir, '../config/params-production.json')
+    abs_file_path = os.path.join(script_dir, '../config/params-production-spot.json')
     with open(abs_file_path, 'r') as f:
         params = json.load(f)
 
@@ -580,9 +580,9 @@ def run_livefeed_backtest():
     config = {'apiKey': params["binance"]["apikey"],
               'secret': params["binance"]["secret"],
               'enableRateLimit': True,
-              'options': {
-                  'defaultType': 'future',
-              },
+              # 'options': {
+              #     'defaultType': 'future',
+              # },
               'nonce': lambda: str(int(time.time() * 1000)),
               }
 
@@ -595,7 +595,7 @@ def run_livefeed_backtest():
     fromdate = datetime.strptime('2020-01-01', '%Y-%m-%d')
     todate = datetime.strptime('2022-03-30', '%Y-%m-%d')
 
-    bitcoin = 'BTC'
+    bitcoin = 'BNB'
     data = store.getdata(dataname=f"{bitcoin}/USDT", name=bitcoin,
                          timeframe=bt.TimeFrame.Minutes,
                          fromdate=fromdate,
@@ -605,7 +605,7 @@ def run_livefeed_backtest():
                          drop_newest=True)  # , historical=True)
     cerebro.adddata(data)
 
-    for ticker in tickers:
+    for ticker in ['BNB']: #tickers:
         data = store.getdata(dataname=f"{ticker}/USDT", name=ticker,
                              timeframe=bt.TimeFrame.Minutes,
                              fromdate=fromdate,
@@ -789,5 +789,5 @@ if __name__ == "__main__":
         (7) use line coupler when comparing trading signals
     '''
     # run_filefeed_backtest()
-    # run_livefeed_backtest()
-    run_live_trading()
+    run_livefeed_backtest()
+    # run_live_trading()
