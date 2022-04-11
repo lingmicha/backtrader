@@ -1,5 +1,6 @@
 import json
 import os
+import random
 
 import backtrader as bt
 import pandas as pd
@@ -51,6 +52,8 @@ class BinanceComissionInfo(bt.CommissionInfo):
 
 class TurtleUnit:
 
+    BETSIZE = 0.01
+
     def __init__(self, data, strategy):
 
         self.data = data
@@ -85,7 +88,7 @@ class TurtleUnit:
         value = self.strategy.broker.get_value()
         cash = self.strategy.broker.get_cash()
 
-        target_size = value * 0.01 / N
+        target_size = value * TurtleUnit.BETSIZE / N
 
         # TODO: More Sophisticated Check
         if cash - abs(target_price * target_size) <= 20:
@@ -656,6 +659,115 @@ def run_livefeed_backtest():
     cerebro.plot()
 
 
+def run_random_three():
+    '''
+    this experiment selects 3 random coins
+    whose ICO date before 2020-01-01
+    and runs the turtle trend algorithm
+    between 2020-01-01 to 2022-03-30 on them.
+
+    the result outputs each combination
+    versus return curve for analysis
+    '''
+
+    tickers_file = 'tickers_20200101.csv'
+    tickers = pd.read_csv(f"data/{tickers_file}", header=None)[1].to_list()
+    print(f"TOTAL {len(tickers)} CRYPTOS ON BINANCE BEFORE 2020-01-01")
+
+    combos = set()
+    while True:
+        combos.add( tuple(random.sample(tickers,3)) )
+        if len(combos) == 3:
+            break
+    print(f"TOTAL NUMBER OF DIFFERENT CRYPTO COMBINATION: {len(combos)}")
+
+    # absolute dir the script is in
+    script_dir = os.path.dirname(__file__)
+    abs_file_path = os.path.join(script_dir, '../config/params-production-spot.json')
+    with open(abs_file_path, 'r') as f:
+        params = json.load(f)
+
+    # Create our store
+    config = {'apiKey': params["binance"]["apikey"],
+              'secret': params["binance"]["secret"],
+              'enableRateLimit': True,
+              'nonce': lambda: str(int(time.time() * 1000)),
+              }
+
+    store = CCXTStore(exchange='binance', currency='USDT', config=config, retries=5, debug=False, sandbox=False)
+
+    # TODO: DATA0 Must have the earilest start datetime
+    fromdate = datetime.strptime('2020-01-01', '%Y-%m-%d')
+    todate = datetime.strptime('2022-03-30', '%Y-%m-%d')
+
+
+    results = []
+    for combo in combos:
+        # RUN EACH COMBO A BACKTEST
+
+        cerebro = bt.Cerebro(stdstats=False, runonce=False, preload=False)
+
+        bitcoin = 'BTC'
+        data = store.getdata(dataname=f"{bitcoin}/USDT", name=bitcoin,
+                             timeframe=bt.TimeFrame.Days,
+                             fromdate=fromdate,
+                             todate=todate,
+                             compression=1,
+                             ohlcv_limit=10000,
+                             drop_newest=True)  # , historical=True)
+        cerebro.adddata(data)
+        data.plotinfo.plot = False
+
+        for ticker in combo:
+
+            data = store.getdata(dataname=f"{ticker}/USDT", name=ticker,
+                                 timeframe=bt.TimeFrame.Days,
+                                 fromdate=fromdate,
+                                 todate=todate,
+                                 compression=1,
+                                 ohlcv_limit=10000,
+                                 drop_newest=True)  # , historical=True)
+            cerebro.adddata(data)
+            data.plotinfo.plot=False
+
+        cerebro.addobserver(bt.observers.Value)
+        cerebro.addanalyzer(bt.analyzers.TimeReturn, timeframe=bt.TimeFrame.NoTimeFrame, _name='alltimereturn')
+        cerebro.addanalyzer(bt.analyzers.SharpeRatio, riskfreerate=0.0)
+        cerebro.addanalyzer(bt.analyzers.Returns)
+        cerebro.addanalyzer(bt.analyzers.DrawDown)
+
+        # TODO : Use Default Broker
+        cerebro.broker.setcash(10000.0)
+        cerebro.broker.addcommissioninfo(BinanceComissionInfo())
+        # Add the strategy
+        cerebro.addstrategy(TurtleTrendDaily,
+                            debug=False,
+                            live_feed=True,
+                            live_trading=False)
+        # Run Here
+        res = cerebro.run()
+
+        result = {}
+        result["Portfolio"] = sorted(combo)
+        result["Return"] = list(res[0].analyzers.alltimereturn.get_analysis().values())[0]
+        result["Sharpe"] = res[0].analyzers.sharperatio.get_analysis()['sharperatio']
+        result["Annual_Return"] = res[0].analyzers.returns.get_analysis()['rnorm100']
+        result["Max_Drawdown"] = res[0].analyzers.drawdown.get_analysis()['max']['drawdown']
+
+        results.append(result)
+        print(f"RESULT FOR {list(combo)}:")
+        print(f"Return: {result['Return']}")
+        print(f"Sharpe: {result['Sharpe']}")
+        print(f"Annual_Return: {result['Annual_Return']}")
+        print(f"Max_Drawdown: {result['Max_Drawdown']}")
+
+
+    df = pd.DataFrame(results)
+    df.set_index('Portfolio', inplace=True)
+    df.to_csv('Random_Experiment.csv')
+
+
+
 def run_live_trading():
 
     # absolute dir the script is in
@@ -780,6 +892,8 @@ def run_live_trading():
     #cerebro.plot(iplot=False)
     cerebro.plot()
 
+
+
 if __name__ == "__main__":
 
     '''TODO: LIVE TRADING CHECKLIST:
@@ -790,5 +904,6 @@ if __name__ == "__main__":
         (5) HERE, data feed should be Day
     '''
     #run_filefeed_backtest()
-    run_livefeed_backtest()
+    #run_livefeed_backtest()
     #run_live_trading()
+    run_random_three()
