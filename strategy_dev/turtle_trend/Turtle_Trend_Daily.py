@@ -251,9 +251,9 @@ class TurtleTrendDaily(bt.Strategy):
                     print(f" { poss }")
 
         # SEPRATE LONG/SHORT/NO POSITIONS:
-        long = list(filter(lambda x: self.getposition(x).size > 1e-8, candidates))
-        short = list(filter(lambda x: self.getposition(x).size < -1e-8, candidates))
-        zero = list(filter(lambda x: abs(self.getposition(x).size) <= 1e-8, candidates))
+        long = list(filter(lambda x: self.getposition(x).size * self.getposition(x).price >= 1e-3, candidates))
+        short = list(filter(lambda x: self.getposition(x).size * self.getposition(x).price <= -1e-3, candidates))
+        zero = list(filter(lambda x: abs(self.getposition(x).size * self.getposition(x).price) < 1e-3, candidates))
 
       # START TURTLE
         self.process_long_position(long)
@@ -699,7 +699,6 @@ def run_random_three():
     # TODO: DATA0 Must have the earilest start datetime
     fromdate = datetime.strptime('2020-01-01', '%Y-%m-%d')
     todate = datetime.strptime('2022-03-30', '%Y-%m-%d')
-
 
     results = []
     for combo in combos:
