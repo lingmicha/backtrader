@@ -64,6 +64,7 @@ class CrossSectionalMR(bt.Strategy):
         self.live_data = False
         if self.p.live_trading:
             signal.signal(signal.SIGINT, self.sigstop)
+            self.resume()
 
         self.inds = {}
         for d in self.datas:
@@ -214,7 +215,7 @@ class CrossSectionalMR(bt.Strategy):
         order_side = "Buy" if order.isbuy() else "Sell"
         if order.status == order.Completed:
             msg = []
-            msg += [f"{order_side} Order Completed - {self.datas[0].datetime.datetime(0)}, "]
+            msg += [f"{order_side} Order Completed - {order.p.data.datetime.datetime(0)}, "]
             msg += [f"Ticker: {order.p.data._name}, "]
             msg += [f"Size: {order.executed.size}, "]
             msg += [f"@Price: {order.executed.price}, "]
@@ -253,16 +254,26 @@ class CrossSectionalMR(bt.Strategy):
         print('STOPPING BACKTRADER......')
 
         # close all position
-        print('CLOSING ALL POSITIONS......')
-        for d in self.datas:
-            if self.getposition(d).size !=0:
-                self.close(d)  # LOOSE ORDER
+        # print('CLOSING ALL POSITIONS......')
+        # for d in self.datas:
+        #     if self.getposition(d).size !=0:
+        #         self.close(d)  # LOOSE ORDER
 
         if self.p.live_trading:
             AlertEmailer.getInstance().send_email_alert("PROGRAM END")
 
         time.sleep(5)
         self.env.runstop()
+
+    def resume(self):
+        self.broker.sync_exchange_positions(self.datas)
+
+        print("INITIAL POSITIONS:")
+        for i, d in enumerate(self.datas):
+            pos = self.getposition(d)
+            if pos.size != 0:
+                print(f"NAME:{d._name} ENT-PRICE:{pos.price} SIZE:{pos.size} VALUE:{pos.size * pos.price}")
+        print("END PRINT INITAIL POSITIONS")
 
 def file_backtest():
 
