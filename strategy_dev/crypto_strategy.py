@@ -136,7 +136,7 @@ class CryptoStrategy(bt.Strategy):
         # trade closed
         if trade.isclosed and self.p.debug:
             t = {
-                'DATETIME': trade.data.datetime.datetime(0),
+            #    'DATETIME': trade.data.datetime.datetime(0),
                 'TICKER': trade.data._name,
                 'GROSS_PNL': trade.pnl,
                 'NET_PNL': trade.pnlcomm,
@@ -158,7 +158,7 @@ class CryptoStrategy(bt.Strategy):
         order_side = "Buy" if order.isbuy() else "Sell"
         if order.status == order.Completed:
             o = {
-                'DATETIME': order.p.data.datetime.datetime(0),
+               # 'DATETIME': order.p.data.datetime.datetime(0),
                 'TICKER': order.p.data._name,
                 'STATUS': 'COMPLETED',
                 'AMOUNT': order.executed.size,
@@ -169,7 +169,7 @@ class CryptoStrategy(bt.Strategy):
 
         elif order.status in {order.Canceled, order.Margin, order.Rejected}:
             o = {
-                'DATETIME': order.p.data.datetime.datetime(0),
+               # 'DATETIME': order.p.data.datetime.datetime(0),
                 'TICKER': order.p.data._name,
                 'STATUS': 'Margin' if order.status == 7 else 'Rejected',
                 'AMOUNT': order.created.size,
@@ -193,7 +193,7 @@ class CryptoStrategy(bt.Strategy):
 
     def resume(self):
 
-        if self.live_trading:
+        if self.p.live_trading:
             self.broker.sync_exchange_positions(self.datas)
         #else:
 
