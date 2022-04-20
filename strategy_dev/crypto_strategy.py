@@ -60,7 +60,7 @@ class CryptoStrategy(bt.Strategy):
                  size * d.close[0] - size * d.close[-1]
                  ])
 
-        print(f"{self.datas[0].datetime.datetime(-1)} DAILY PNL TABLE:")
+        print(f"{self.datas[0].datetime.datetime(0)} DAILY PNL TABLE:")
         print( tabulate(data, headers=headers, tablefmt="github") )
 
     def print_position_table(self):
@@ -71,14 +71,14 @@ class CryptoStrategy(bt.Strategy):
                    'ENTRY_PRICE',
                    'AMOUNT',
                    'ENTRY_VALUE',
-                   'T-0_VALUE',
-                   'PNL',
                    ]
 
         for i, d in enumerate(self.datas):
             # compare the close[0] and close[-1] price, calculate
-            if len(d) < 1:
-                continue
+            if len(d) == 0:
+                dt = datetime.utcnow()
+            else:
+                dt = d.datetime.date(0)
 
             size = self.getposition(d).size
             price = self.getposition(d).price
@@ -87,16 +87,14 @@ class CryptoStrategy(bt.Strategy):
                 continue
 
             data.append(
-                [d.datetime.date(0),
+                [dt,
                  d._name,
                  price,
                  size,
                  price * size,
-                 size * d.close[0],
-                 size * d.close[0] - size*price,
                  ])
 
-        print(f"{self.datas[0].datetime.datetime(-1)} POSITION TABLE:")
+        print(f"{dt} POSITION TABLE:")
         print( tabulate(data, headers=headers, tablefmt="github") )
 
     def manual_update_balance(self):
@@ -114,13 +112,13 @@ class CryptoStrategy(bt.Strategy):
     def print_closed_trade(self):
         # this function is used in conjucation with notify_trade
         if self.p.debug and len(self.closed_trades)>0:
-            print(f"{self.datas[0].datetime.datetime(-1)} T-1 TRADE TABLE:")
+            print(f"{self.datas[0].datetime.datetime(0)} T-1 TRADE TABLE:")
             print(tabulate(self.closed_trades, headers='keys', tablefmt='github'))
             self.closed_trades.clear()
 
     def print_closed_order(self):
         if self.p.debug and len(self.closed_orders)>0:
-            print(f"{self.datas[0].datetime.datetime(-1)} T-1 ORDER TABLE:")
+            print(f"{self.datas[0].datetime.datetime(0)} T-1 ORDER TABLE:")
             print(tabulate(self.closed_orders, headers='keys', tablefmt='github'))
             self.closed_orders.clear()
 
@@ -135,8 +133,11 @@ class CryptoStrategy(bt.Strategy):
 
         # trade closed
         if trade.isclosed and self.p.debug:
+            dt = datetime.utcnow() \
+                if self.cerebro.p.quicknotify \
+                else trade.data.datetime.datetime(0)
             t = {
-            #    'DATETIME': trade.data.datetime.datetime(0),
+                'DATETIME': dt,
                 'TICKER': trade.data._name,
                 'GROSS_PNL': trade.pnl,
                 'NET_PNL': trade.pnlcomm,
@@ -149,16 +150,19 @@ class CryptoStrategy(bt.Strategy):
         """
 
         if order.alive():
-            if self.p.debug:
-                print(f"{order.p.data._name} ORDER IS ALIVE: {self.datas[0].datetime.datetime(0)}")
+            # if self.p.debug:
+            #     print(f"{order.p.data._name} ORDER IS ALIVE: {self.datas[0].datetime.datetime(0)}")
             # submitted, accepted, partial, created
             # Returns if the order is in a status in which it can still be executed
             return
 
         order_side = "Buy" if order.isbuy() else "Sell"
         if order.status == order.Completed:
+            dt = datetime.utcnow() \
+                if self.cerebro.p.quicknotify \
+                else order.p.data.datetime.datetime(0)
             o = {
-               # 'DATETIME': order.p.data.datetime.datetime(0),
+                'DATETIME': dt,
                 'TICKER': order.p.data._name,
                 'STATUS': 'COMPLETED',
                 'AMOUNT': order.executed.size,
@@ -168,8 +172,11 @@ class CryptoStrategy(bt.Strategy):
             self.closed_orders.append(o)
 
         elif order.status in {order.Canceled, order.Margin, order.Rejected}:
+            dt = datetime.utcnow() \
+                if self.cerebro.p.quicknotify \
+                else order.p.data.datetime.datetime(0)
             o = {
-               # 'DATETIME': order.p.data.datetime.datetime(0),
+                'DATETIME': dt,
                 'TICKER': order.p.data._name,
                 'STATUS': 'Margin' if order.status == 7 else 'Rejected',
                 'AMOUNT': order.created.size,
