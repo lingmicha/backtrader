@@ -7,8 +7,8 @@ import json
 import time
 from ccxtbt import CCXTStore
 from datetime import datetime
-from strategy_dev import AlertEmailer, DataSet, BinancePerpetualFutureCommInfo
-
+from strategy_dev import AlertEmailer, DataSet, BinancePerpetualFutureCommInfo, CryptoStrategy
+from tabulate import tabulate
 
 def min_n(array, n):
     return np.argpartition(array, n)[:n]
@@ -16,7 +16,7 @@ def min_n(array, n):
 def max_n(array, n):
     return np.argpartition(array, -n)[-n:]
 
-class CrossSectionalMR(bt.Strategy):
+class CrossSectionalMR(CryptoStrategy):
     '''
         Mean-Reversion: use market mean return as benchmark to perform mena reversion.
 
@@ -47,24 +47,15 @@ class CrossSectionalMR(bt.Strategy):
 
     '''
 
-
-
     params = (
         ('n', 20),
         ('pct', 2),
         ('std', 20),
         ('sma', 20),
         ('vol_filter', False),
-        ('debug', False),
-        ('live_trading', False),
     )
 
     def __init__(self):
-
-        self.live_data = False
-        if self.p.live_trading:
-            signal.signal(signal.SIGINT, self.sigstop)
-            self.resume()
 
         self.inds = {}
         for d in self.datas:
@@ -73,7 +64,7 @@ class CrossSectionalMR(bt.Strategy):
             self.inds[d]["std"] = bt.indicators.StandardDeviation(d.close, period=self.p.std)
             self.inds[d]["sma"] = bt.indicators.SimpleMovingAverage(d.close, period=self.p.sma)
 
-        #print("This is a new strat")
+        super().__init__() # calling CryptoStrategy init
 
     def prenext(self):
         self.next()
@@ -87,30 +78,16 @@ class CrossSectionalMR(bt.Strategy):
             return  # prevent live trading with delayed data
 
         self.manual_update_balance()
-
+        self.print_period_stats()
 
         # only look at data that existed last week
         available = list(filter(lambda d: len(d) > self.p.sma + 2, self.datas))
 
         if len(available) > self.p.n:
-            print( f"{available[0].datetime.datetime(0)}: AVAILABLE TICKERS: {len(available)}")
+            print( f"{available[0].datetime.date(0)}: AVAILABLE TICKERS: {len(available)}")
         else:
             print(f"NOT ENOUGH TICKERS FOR THE STRATEGY, CURRENTLY {len(available)} TICKERS")
             return
-
-        if self.p.debug:
-            for i, d in enumerate(available):
-                size = self.getposition(d).size
-                price = self.getposition(d).price
-                value = size * price
-                if size !=0:
-                    print(f"{d.datetime.datetime(0)} POSITION-{d._name}: "
-                          f"ENT-PRICE:{price}, "
-                          f"CUR-PRICE:{d.close[0]}, "
-                          f"SIZE:{size}, "
-                          f"ENT-VALUE:{value}, "
-                          f"CUR-VALUE:{d.close[0]*size} "
-                          f"PNL:{ d.close[0]*size - value }")
 
         rets = np.zeros(len(available))
         stds = np.zeros(len(available))
@@ -125,38 +102,20 @@ class CrossSectionalMR(bt.Strategy):
 
         market_ret = np.mean(rets)
         weights = -(rets - market_ret)
-        print(f"{self.data.datetime.datetime(0)} MARKET RETURN:{market_ret}")
 
         not_allowed_shorts = np.intersect1d(np.nonzero(regimes > 0), np.nonzero(weights < 0))
         not_allowed_longs = np.intersect1d(np.nonzero(regimes < 0), np.nonzero(weights > 0))
         not_allowed = np.union1d(not_allowed_shorts, not_allowed_longs)
 
-        if self.p.debug:
-            if len(not_allowed_shorts):
-                print( f"EXCLUDE SHORTS(NAME,RETURN): {[ (available[x]._name, rets[x]) for x in not_allowed_shorts ]} ")
-            if len(not_allowed_longs):
-                print( f"EXCLUDE LONGS(NAME,RETURN): {[ (available[x]._name, rets[x]) for x in not_allowed_longs ]} " )
-
         weights[not_allowed] = 0 # mask not allowed
         max_weights_index = max_n(np.abs(weights), self.params.n)
         low_volality_index = min_n(stds, self.params.n)
-
-        if self.p.debug:
-            msg = list()
-            msg.append( f"TOP {self.params.n} [TICKER|RETURN]: ")
-            # print selected top params.n and their returns
-            for i, d in enumerate(available):
-                if i in max_weights_index:
-                    msg.append( f"[{d._name}|{rets[i]:.3f}] " )
-            print( msg )
 
         if self.p.vol_filter:
             selected_weights_index = np.intersect1d(max_weights_index,
                                                     low_volality_index)
         else:
             selected_weights_index = max_weights_index
-
-        print(f"{self.data.datetime.datetime(0)}: POSITIONS TAKEN:{len(selected_weights_index)} ")
 
         if not len(selected_weights_index):
             # no good trades today
@@ -177,113 +136,34 @@ class CrossSectionalMR(bt.Strategy):
             if i in selected_weights_index:
                 self.order_target_percent(d, target=weights[i])
 
+        # in the end , print today's summary
+        if self.p.debug:
+            headers = [
+                'No.', 'TICKER','RETURN','MARKET_RETURN','EXCESS_RETURN',
+                'FORBID_LONG','FORBID_SHORT','FINAL_WEIGHT',
+            ]
+            data = list()
 
-    def notify_trade(self, trade):
-        """Execute after each trade
-        Calcuate Gross and Net Profit/loss"""
+            for i, d in enumerate(available):
+                data.append(
+                    [ i, d._name, rets[i], market_ret, rets[i] - market_ret,
+                      'TRUE' if i in not_allowed_longs else '-',
+                      'TRUE' if i in not_allowed_shorts else '-',
+                      weights[i],
+                    ]
+                )
 
-        # trade closed
-        if trade.isclosed:
-            print(
-                f"{trade.data.datetime.datetime(0)} OPERATIONAL PROFIT, GROSS: {trade.data._name}, {trade.pnl:.2f}, Net: {trade.pnlcomm:.2f}"
-            )
-
-    def manual_update_balance(self):
-        ''' FOR LIVE TRADING,
-         the broker would fetch account balance every bar,
-         result in too many request per minute,
-         so we mannually update after order and each day.
-         This is not the best way, but it is more economical
-        '''
-        if not self.p.live_trading:
-            return
-
-        self.broker.get_balance()
-
-    def notify_order(self, order):
-        """Execute when buy or sell is triggered
-        Notify if order was accepted or rejected
-        """
-
-        if order.alive():
-            if self.p.debug:
-                print(f"{order.p.data._name} ORDER IS ALIVE: {self.datas[0].datetime.datetime(0)}")
-            # submitted, accepted, partial, created
-            # Returns if the order is in a status in which it can still be executed
-            return
-
-        order_side = "Buy" if order.isbuy() else "Sell"
-        if order.status == order.Completed:
-            msg = []
-            msg += [f"{order_side} Order Completed - {order.p.data.datetime.datetime(0)}, "]
-            msg += [f"Ticker: {order.p.data._name}, "]
-            msg += [f"Size: {order.executed.size}, "]
-            msg += [f"@Price: {order.executed.price}, "]
-            msg += [f"Value: {order.executed.value:.2f}, "]
-            msg += [f"Comm: {order.executed.comm:.6f} "]
-            print("".join(msg))
-            if self.p.live_trading:
-                AlertEmailer.getInstance().send_email_alert("\n".join(msg))
-
-        elif order.status in {order.Canceled, order.Margin, order.Rejected}:
-            msg = []
-            msg += [f"{order_side} Order Canceled/Margin/Rejected"]
-            msg += [f"Ticker: {order.p.data._name} "]
-            msg += [f"Size: {order.created.size} "]
-            msg += [f"@Price: {order.created.price} "]
-            msg += [f"Value: {order.created.value:.2f} "]
-            msg += [f"Remaining Cash: {self.broker.getcash()}"]
-            print("".join(msg))
-            if self.p.live_trading:
-                AlertEmailer.getInstance().send_email_alert("\n".join(msg))
-
-        self.manual_update_balance()
-
-    def notify_data(self, data, status, *args, **kwargs):
-        dn = data._name
-        dt = datetime.now()
-        msg = 'Data Status: {}, Order Status: {}'.format(data._getstatusname(status), status)
-        print(f"{dt}, {dn}, {msg}")
-
-        if data._getstatusname(status) == 'LIVE':
-            self.live_data = True
-        else:
-            self.live_data = False
-
-    def sigstop(self, a, b):
-        print('STOPPING BACKTRADER......')
-
-        # close all position
-        # print('CLOSING ALL POSITIONS......')
-        # for d in self.datas:
-        #     if self.getposition(d).size !=0:
-        #         self.close(d)  # LOOSE ORDER
-
-        if self.p.live_trading:
-            AlertEmailer.getInstance().send_email_alert("PROGRAM END")
-
-        time.sleep(5)
-        self.env.runstop()
-
-    def resume(self):
-        self.broker.sync_exchange_positions(self.datas)
-
-        print("INITIAL POSITIONS:")
-        for i, d in enumerate(self.datas):
-            pos = self.getposition(d)
-            if pos.size != 0:
-                print(f"NAME:{d._name} ENT-PRICE:{pos.price} SIZE:{pos.size} VALUE:{pos.size * pos.price}")
-        print("END PRINT INITAIL POSITIONS")
+            print(f"{self.datas[0].datetime.date(0)} STRATEGY STATS TABLE:")
+            print(tabulate(data, headers=headers, tablefmt="github"))
 
 def file_backtest():
 
-    dataset = DataSet(DataSet.BINANCE_SPOT_201708_202203)
-    start = '2020-01-01'
+    dataset = DataSet(DataSet.BINANCE_FUTURE_201708_202203)
+    start = '2021-12-01'
     end = '2022-03-30'
 
     cerebro = bt.Cerebro(stdstats=False,
-                         runonce=False,
-                         )
+                         runonce=False,)
 
     dataset.configure_file_backtest(start,
                                     end,
@@ -525,8 +405,8 @@ def run_live_trading():
 
 if __name__ == "__main__":
 
-    #file_backtest()
+    file_backtest()
     #file_backtests()
     #file_backtests_seqrun()
     #livedata_backtest()
-    run_live_trading()
+    #run_live_trading()
