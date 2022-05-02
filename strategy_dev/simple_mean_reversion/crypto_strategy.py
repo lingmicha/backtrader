@@ -123,9 +123,9 @@ class CryptoStrategy(bt.Strategy):
             self.closed_orders.clear()
 
     def print_period_stats(self):
-        self.print_daily_pnl_table()
+        #self.print_daily_pnl_table()
         self.print_closed_order()
-        self.print_closed_trade()
+        #self.print_closed_trade()
 
     def notify_trade(self, trade):
         """Execute after each trade

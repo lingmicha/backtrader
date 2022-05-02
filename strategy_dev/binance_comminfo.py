@@ -21,7 +21,7 @@ class CryptoCommInfo(bt.CommInfoBase):
 
 class BinancePerpetualFutureCommInfo(CryptoCommInfo):
     params = (
-        ("commission", 0.00018),
+        ("commission", 0.00036),
     )
 
 

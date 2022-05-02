@@ -1,4 +1,3 @@
-import signal
 import backtrader as bt
 import numpy as np
 import pandas as pd
@@ -7,8 +6,10 @@ import json
 import time
 from ccxtbt import CCXTStore
 from datetime import datetime
-from strategy_dev import AlertEmailer, DataSet, BinancePerpetualFutureCommInfo, CryptoStrategy
+from strategy_dev import AlertEmailer, BinancePerpetualFutureCommInfo
 from tabulate import tabulate
+from crypto_strategy import CryptoStrategy
+from setup_backtest import DataSet
 
 def min_n(array, n):
     return np.argpartition(array, n)[:n]
@@ -50,7 +51,7 @@ class CrossSectionalMR(CryptoStrategy):
     params = (
         ('n', 20),
         ('pct', 2),
-        ('std', 20),
+        ('std', 10),
         ('sma', 20),
         ('vol_filter', False),
     )
@@ -58,6 +59,7 @@ class CrossSectionalMR(CryptoStrategy):
     def __init__(self):
 
         self.inds = {}
+
         for d in self.datas:
             self.inds[d] = {}
             self.inds[d]["pct"] = bt.indicators.PercentChange(d.close, period=self.p.pct)
@@ -78,7 +80,7 @@ class CrossSectionalMR(CryptoStrategy):
             return  # prevent live trading with delayed data
 
         self.manual_update_balance()
-        self.print_period_stats()
+        #self.print_period_stats()
 
         # only look at data that existed last week
         available = list(filter(lambda d: len(d) > self.p.sma + 2, self.datas))
@@ -137,24 +139,24 @@ class CrossSectionalMR(CryptoStrategy):
                 self.order_target_percent(d, target=weights[i])
 
         # in the end , print today's summary
-        if self.p.debug:
-            headers = [
-                'No.', 'TICKER','RETURN','MARKET_RETURN','EXCESS_RETURN',
-                'FORBID_LONG','FORBID_SHORT','FINAL_WEIGHT',
-            ]
-            data = list()
-
-            for i, d in enumerate(available):
-                data.append(
-                    [ i, d._name, rets[i], market_ret, rets[i] - market_ret,
-                      'TRUE' if i in not_allowed_longs else '-',
-                      'TRUE' if i in not_allowed_shorts else '-',
-                      weights[i],
-                    ]
-                )
-
-            print(f"{self.datas[0].datetime.date(0)} STRATEGY STATS TABLE:")
-            print(tabulate(data, headers=headers, tablefmt="github"))
+        # if self.p.debug:
+        #     headers = [
+        #         'No.', 'TICKER','RETURN','MARKET_RETURN','EXCESS_RETURN',
+        #         'FORBID_LONG','FORBID_SHORT','FINAL_WEIGHT',
+        #     ]
+        #     data = list()
+        #
+        #     for i, d in enumerate(available):
+        #         data.append(
+        #             [ i, d._name, rets[i], market_ret, rets[i] - market_ret,
+        #               'TRUE' if i in not_allowed_longs else '-',
+        #               'TRUE' if i in not_allowed_shorts else '-',
+        #               weights[i],
+        #             ]
+        #         )
+        #
+        #     print(f"{self.datas[0].datetime.date(0)} STRATEGY STATS TABLE:")
+        #     print(tabulate(data, headers=headers, tablefmt="github"))
 
 def file_backtest():
 
@@ -165,18 +167,18 @@ def file_backtest():
     cerebro = bt.Cerebro(stdstats=False,
                          runonce=False,)
 
-    dataset.configure_file_backtest(start,
-                                    end,
-                                    cerebro,
-                                    CrossSectionalMR,
-                                    optimize=False,
-                                    n=30,
-                                    pct=2,
-                                    std=20,
-                                    sma=20,
-                                    vol_filter=False,
-                                    debug=True,
-                                    )
+    dataset.configure_file_data_backtest(start,
+                                        end,
+                                        cerebro,
+                                        CrossSectionalMR,
+                                        optimize=False,
+                                        n=30,
+                                        pct=2,
+                                        std=20,
+                                        sma=20,
+                                        vol_filter=False,
+                                        debug=True,
+                                        )
 
     result = dataset.run_backtest()
 
@@ -194,7 +196,7 @@ def file_backtests():
                          runonce=False,
                          )
 
-    dataset.configure_file_backtest(start,
+    dataset.configure_file_data_backtest(start,
                                     end,
                                     cerebro,
                                     CrossSectionalMR,
@@ -232,7 +234,7 @@ def file_backtests_seqrun():
         cerebro = bt.Cerebro(stdstats=False,
                              runonce=False,
                              )
-        dataset.configure_file_backtest(start,
+        dataset.configure_file_data_backtest(start,
                                         end,
                                         cerebro,
                                         CrossSectionalMR,
@@ -260,7 +262,7 @@ def livedata_backtest():
                          runonce=False,
                          )
 
-    dataset.configure_livedata_backtest('spot',
+    dataset.configure_live_data_backtest('spot',
                                         start,
                                         end,
                                         cerebro,
