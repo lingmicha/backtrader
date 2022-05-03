@@ -63,6 +63,8 @@ class LongShortReturn(bt.Strategy):
 
         if self.p.live_trading and (not self.live_data):
             return  # prevent live trading with delayed data
+        else:
+            time.sleep(30) # sleep 30s to avoid over pulling
 
         # only look at data that existed last week
         available = list(filter(lambda d: len(d) > self.p.std + 2, self.datas))
@@ -91,16 +93,6 @@ class LongShortReturn(bt.Strategy):
         longs_index = min_n(scores, numbers_per_basket)
         shorts_index = max_n(scores, numbers_per_basket)
         selects = np.union1d(longs_index, shorts_index)
-
-        # print(f"long tickers: {[available[i]._name for i in longs_index ]}")
-        # print(f"long scores(A-B): {scores[longs_index]}")
-        # print(f"return scores(A): {stats.zscore(rets)[longs_index]}")
-        # print(f"distance scores(B): {distances[longs_index]}")
-        #
-        # print(f"short tickers: {[available[i]._name for i in longs_index]}")
-        # print(f"short scores(A-B): {scores[shorts_index]}")
-        # print(f"return scores(A): {stats.zscore(rets)[shorts_index]}")
-        # print(f"distance scores(B): {distances[shorts_index]}")
 
         # calculate weight: factor weighted
         sum_scores = np.sum(np.abs(scores[selects]))
