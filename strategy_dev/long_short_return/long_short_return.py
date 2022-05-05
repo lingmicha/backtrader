@@ -63,8 +63,8 @@ class LongShortReturn(bt.Strategy):
 
         if self.p.live_trading and (not self.live_data):
             return  # prevent live trading with delayed data
-        else:
-            time.sleep(30) # sleep 30s to avoid over pulling
+        #else:
+            #time.sleep(30) # sleep 30s to avoid over pulling
 
         # only look at data that existed last week
         available = list(filter(lambda d: len(d) > self.p.std + 2, self.datas))
@@ -74,6 +74,25 @@ class LongShortReturn(bt.Strategy):
         else:
             print(f"NOT ENOUGH TICKERS FOR THE STRATEGY, CURRENTLY {len(available)} TICKERS")
             return
+
+        data = list()
+        total = 0
+        # print T+1 return
+        for i, d in enumerate(available):
+            pos = self.getposition(d)
+            price = pos.price
+            size = pos.size
+            cur_price = d.close[0]
+            pre_price = d.close[-1]
+            pnl = (cur_price - pre_price) * size
+            total += pnl
+            if( size != 0 ):
+                data.append([d._name, size, price, cur_price, pnl, total])
+
+        headers = ['TICKER', 'Amount', 'Entry', 'Exit', 'PnL','Total' ]
+        print(f"DAILY STRATEGY CALCULATION TABLE({self.datetime.date(0)}) :")
+        print( tabulate(data, headers=headers, tablefmt="github") )
+        
 
         self.manual_update_balance()
 
@@ -103,17 +122,24 @@ class LongShortReturn(bt.Strategy):
             if i not in longs_index and i not in shorts_index:
                 self.close(d)
 
+        # if stats.skew(ret_scores) < 0 :
+        #     return # no trading today
+
         # rebalance position
         for i, d in enumerate(available):
             if i in longs_index:
                 self.order_target_percent(d, target=0.5 / numbers_per_basket)
-                # self.order_target_percent(d, target= weights[i] )
+                #self.order_target_percent(d, target= weights[i] )
 
             if i in shorts_index:
                 self.order_target_percent(d, target=-0.5 / numbers_per_basket)
-                # self.order_target_percent(d, target= - weights[i] )
+                #self.order_target_percent(d, target= - weights[i] )
 
         # print out all scores and mark selected
+        print(f"VARIANCE FOR A-2B/A/B: {stats.tstd(scores)}, {stats.tstd(rets)}, {stats.tstd(distances)}")
+        print(f"SKEW FOR A-2B/A/B: {stats.skew(scores)},{stats.skew(ret_scores)}, {stats.skew(distances)}, ")
+        print(f"KURTOSIS FOR A-2B/A/B: {stats.kurtosis(scores)}, {stats.kurtosis(ret_scores)}, {stats.kurtosis(distances)}")
+
         data = list()
         for i, d in enumerate(available):
             data.append( [ d._name, scores[i], ret_scores[i], distances[i],
@@ -177,7 +203,7 @@ def file_backtest():
                                          cerebro,
                                          LongShortReturn,
                                          optimize=False,
-                                         pct=2,
+                                         pct=1,
                                          std=20,
                                          )
 
@@ -334,6 +360,6 @@ def live_trading():
 
 
 if __name__ == "__main__":
-    # file_backtest()
+    file_backtest()
     # live_backtest()
-    live_trading()
+    # live_trading()

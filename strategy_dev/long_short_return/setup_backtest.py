@@ -33,7 +33,10 @@ class DataSet:
      BINANCE_FUTURE_202001_202203,
      BINANCE_FUTURE_201708_202203,
      BINANCE_FUTURE_202001_202203_4HR,
-     ) = range(1,6)
+     BITFINEX_FUTURE_201712_202203,
+     HUOBI_SPOT_201801_202203,
+     BINANCE_SPOT_202203_BEAR,
+     ) = range(1,9)
 
     DATA_PATH = '../datas'
     CONFIG_PATH = '../config'
@@ -51,6 +54,12 @@ class DataSet:
             self.data_path = f"{DataSet.DATA_PATH}/binance-future-20200101-20220330"
         elif dataset == DataSet.BINANCE_FUTURE_202001_202203_4HR:
             self.data_path = f"{DataSet.DATA_PATH}/binance-future-20200101-20220330-4h"
+        elif dataset == DataSet.BITFINEX_FUTURE_201712_202203:
+            self.data_path = f"{DataSet.DATA_PATH}/bitfinex-20171201-20220330"
+        elif dataset == DataSet.HUOBI_SPOT_201801_202203:
+            self.data_path = f"{DataSet.DATA_PATH}/huobi-spot-20220330"
+        elif dataset == DataSet.BINANCE_SPOT_202203_BEAR:
+            self.data_path = f"{DataSet.DATA_PATH}/binance-spot-20220330-bear"
         else:
             raise Exception(f"dataset not recognized!!!")
 
