@@ -499,7 +499,7 @@ if __name__ == "__main__":
     start = '2020-01-01'
     end = '2022-03-30'
     quote = 'USDT'
-    timeframe = '1m'
+    timeframe = '1d'
 
     fold_path = '../data'
 
