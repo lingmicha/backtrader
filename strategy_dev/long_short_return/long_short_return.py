@@ -104,6 +104,7 @@ class LongShortReturn(bt.Strategy):
             rets[i] = self.inds[d]['pct'][0]
             distances[i] = self.inds[d]['distance'][0]
 
+        # market_rets = np.mean(rets)
         ret_scores = stats.zscore(rets)
         scores = (ret_scores - 2 * distances)
 
@@ -112,6 +113,13 @@ class LongShortReturn(bt.Strategy):
         longs_index = min_n(scores, numbers_per_basket)
         shorts_index = max_n(scores, numbers_per_basket)
         selects = np.union1d(longs_index, shorts_index)
+
+        # excludes |return - market return| > 10% and contradicts our direction
+        # for i, d in enumerate(available):
+        #     if rets[i] - market_rets > 0.15: # no short strong performers
+        #         shorts_index = shorts_index[shorts_index != i]
+        #     if rets[i] - market_rets < -0.15: # no long
+        #         longs_index = longs_index[longs_index != i]
 
         # calculate weight: factor weighted
         sum_scores = np.sum(np.abs(scores[selects]))
@@ -199,6 +207,30 @@ def file_backtest():
                          runonce=False, )
 
     dataset.configure_file_data_backtest(start,
+                                         end,
+                                         cerebro,
+                                         LongShortReturn,
+                                         optimize=False,
+                                         pct=1,
+                                         std=20,
+                                         )
+
+    result = dataset.run_backtest()
+
+    cerebro.plot(iplot=False)[0][0]
+
+    return
+
+def database_backtest():
+
+    dataset = DataSet(DataSet.BINANCE_FUTURE_201708_202203)
+    start = '2021-01-01'
+    end = '2022-05-20'
+
+    cerebro = bt.Cerebro(stdstats=False,
+                         runonce=False, )
+
+    dataset.configure_database_backtest(start,
                                          end,
                                          cerebro,
                                          LongShortReturn,
@@ -360,6 +392,7 @@ def live_trading():
 
 
 if __name__ == "__main__":
-    file_backtest()
+    # file_backtest()
     # live_backtest()
     # live_trading()
+    database_backtest()

@@ -164,6 +164,52 @@ class DataSet:
         cerebro.addanalyzer(bt.analyzers.DrawDown)
         cerebro.addanalyzer(bt.analyzers.TimeDrawDown,timeframe=bt.TimeFrame.Days)
 
+    def configure_database_backtest(self, start, end, cerebro, strategy, optimize=False, **kwargs):
+
+        self.cerebro = cerebro
+        self.optimize = optimize
+
+        # absolute dir the script is in
+        config_file = f"{DataSet.CONFIG_PATH}/params-production-future.json"
+        with open(config_file, 'r') as f:
+            params = json.load(f)
+
+        # TODO: DATA0 Must have the earilest start datetime
+        fromdate = datetime.strptime(start, '%Y-%m-%d')
+        todate = datetime.strptime(end, '%Y-%m-%d')
+
+        if self.tickers is not None and len(self.tickers) > 0:
+            for ticker in self.tickers:
+                data = bt.feeds.MySQLData(name=ticker,
+                                          symbol=ticker+"/USDT",
+                                          fromdate=fromdate,
+                                          todate=todate,
+                                          dbHost=params["database"]["host"],
+                                          dbUser=params["database"]["user"],
+                                          dbPWD=params["database"]["pass"],
+                                          dbName=params["database"]["name"],
+                                          plot=False,
+                                          timeframe=bt.TimeFrame.Days)
+
+                cerebro.adddata(data)
+
+        cerebro.broker.setcash(10000)
+        cerebro.broker.set_coc(True)
+        cerebro.broker.addcommissioninfo(BinancePerpetualFutureCommInfo())
+
+        if optimize:
+            cerebro.optstrategy(strategy,
+                                **kwargs,)
+        else:
+            cerebro.addstrategy(strategy,
+                                **kwargs,)
+
+        cerebro.addobserver(bt.observers.Value)
+        cerebro.addanalyzer(bt.analyzers.TimeReturn, timeframe=bt.TimeFrame.NoTimeFrame, _name='alltimereturn')
+        cerebro.addanalyzer(bt.analyzers.SharpeRatio, riskfreerate=0.0)
+        cerebro.addanalyzer(bt.analyzers.Returns, timeframe=bt.TimeFrame.Days)
+        cerebro.addanalyzer(bt.analyzers.DrawDown)
+        cerebro.addanalyzer(bt.analyzers.TimeDrawDown, timeframe=bt.TimeFrame.Days)
 
     def configure_live_data_backtest(self, market, start, end, cerebro, strategy, optimize=False, **kwargs):
 
